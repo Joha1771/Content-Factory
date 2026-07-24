@@ -1,10 +1,18 @@
 import { query, queryOne } from "@/lib/db";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const MAKE_WEBHOOK_URL = process.env.MAKE_WEBHOOK_URL;
 const BOT_TOKEN = process.env.BOT_TOKEN!;
+const CRON_SECRET = process.env.CRON_SECRET;
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  if (CRON_SECRET) {
+    const secret = req.headers.get("x-cron-secret");
+    if (secret !== CRON_SECRET) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
   const now = new Date().toISOString();
 
   const duePosts = await query<any>(

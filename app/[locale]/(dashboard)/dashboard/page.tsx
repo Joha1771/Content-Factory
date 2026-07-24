@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
   Plus, Calendar, Sparkles, Send, Clock, FileText, Bot,
-  Lightbulb, TrendingUp, TrendingDown, Minus,
+  Lightbulb, TrendingUp, TrendingDown, Minus, CheckCircle2, Circle,
+  FolderOpen, Plug, Rocket,
 } from "lucide-react";
 import HealthWidget from "@/components/features/HealthWidget";
 
@@ -45,12 +46,16 @@ export default async function DashboardPage() {
   let platforms: { platform: string }[] = [];
   let upcomingPosts: any[] = [];
   let recentContents: RecentContent[] = [];
+  let projectsCount = 0;
+  let integrationsCount = 0;
 
   try {
+    let projectsRow = null, integrationsRow = null;
     [
       genTotal, scheduled, published,
       genThisWeek, genLastWeek, pubThisWeek, pubLastWeek,
       platforms, upcomingPosts, recentContents,
+      projectsRow, integrationsRow,
     ] = await Promise.all([
       queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1", [userId]),
       queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'scheduled'", [userId]),
@@ -73,7 +78,11 @@ export default async function DashboardPage() {
          WHERE c.user_id = $1 ORDER BY c.created_at DESC LIMIT 4`,
         [userId]
       ),
+      queryOne<{ count: string }>("SELECT COUNT(*) as count FROM projects WHERE user_id = $1", [userId]),
+      queryOne<{ count: string }>("SELECT COUNT(*) as count FROM integrations WHERE user_id = $1 AND is_active = true", [userId]),
     ]);
+    projectsCount = parseInt(projectsRow?.count ?? "0");
+    integrationsCount = parseInt(integrationsRow?.count ?? "0");
   } catch (e) {
     console.error("Dashboard query error:", e);
     // Render page with empty data rather than crashing
@@ -136,18 +145,67 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 bg-panel border border-line rounded-[9px] px-4 py-2.5">
-          <div className="w-6 h-6 rounded-[6px] flex items-center justify-center flex-shrink-0" style={{ background: "rgba(130,80,223,0.1)" }}>
-            <Lightbulb size={13} style={{ color: "#8250df" }} strokeWidth={1.6} />
+        {/* Onboarding checklist — показывается пока не выполнены базовые шаги */}
+        {(projectsCount === 0 || integrationsCount === 0 || publishedCount === 0) && (
+          <div className="bg-panel border border-line rounded-[12px] overflow-hidden">
+            <div className="px-4 py-3 border-b border-line flex items-center gap-2.5">
+              <Rocket size={14} className="text-accent" strokeWidth={1.6} />
+              <p className="text-[13px] font-semibold text-tx-1">Начало работы</p>
+              <span className="ml-auto text-[10px] text-tx-3 font-medium">
+                {[projectsCount > 0, integrationsCount > 0, publishedCount > 0].filter(Boolean).length} / 3 шага
+              </span>
+            </div>
+            <div className="divide-y divide-line">
+              {[
+                {
+                  done: projectsCount > 0,
+                  icon: FolderOpen,
+                  label: "Создать проект",
+                  sub: "Название, ниша, аудитория вашего бизнеса",
+                  href: `/${locale}/projects`,
+                  cta: "Создать проект",
+                },
+                {
+                  done: integrationsCount > 0,
+                  icon: Plug,
+                  label: "Подключить Telegram-канал",
+                  sub: "Добавьте бота в ваш канал чтобы публиковать посты",
+                  href: `/${locale}/integrations`,
+                  cta: "Подключить",
+                },
+                {
+                  done: publishedCount > 0,
+                  icon: Send,
+                  label: "Опубликовать первый пост",
+                  sub: "Создайте пост с помощью AI и отправьте в канал",
+                  href: `/${locale}/create`,
+                  cta: "Создать пост",
+                },
+              ].map((step, i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-3" style={{ opacity: step.done ? 0.55 : 1 }}>
+                  <div className="flex-shrink-0">
+                    {step.done
+                      ? <CheckCircle2 size={18} className="text-pos" strokeWidth={1.8} />
+                      : <Circle size={18} className="text-tx-3" strokeWidth={1.5} />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12.5px] font-medium text-tx-1" style={{ textDecoration: step.done ? "line-through" : "none" }}>{step.label}</p>
+                    <p className="text-[11px] text-tx-3 mt-0.5">{step.sub}</p>
+                  </div>
+                  {!step.done && (
+                    <Link
+                      href={step.href}
+                      className="flex-shrink-0 px-3 py-1.5 bg-accent text-on-accent text-[11px] font-medium rounded-[7px] hover:opacity-90 transition-opacity"
+                    >
+                      {step.cta}
+                    </Link>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-          <p className="text-[12px] text-tx-1 flex-1">
-            <span className="font-medium" style={{ color: "#8250df" }}>AI совет:</span>{" "}
-            Посты с лайфхаками получают на 40% больше сохранений — попробуй опубликовать сегодня
-          </p>
-          <Link href={`/${locale}/create`} className="text-[11px] font-medium flex-shrink-0 hover:opacity-80 transition-opacity" style={{ color: "#8250df" }}>
-            Создать →
-          </Link>
-        </div>
+        )}
 
         <HealthWidget
           publishedCount={publishedCount}
