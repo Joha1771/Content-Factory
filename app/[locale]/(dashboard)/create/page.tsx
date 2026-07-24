@@ -1389,6 +1389,7 @@ function CreatePostModal({
   const [imageUrl, setImageUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [expandingField, setExpandingField] = useState<string | null>(null);
   const [editedTg, setEditedTg] = useState("");
   const [editedIg, setEditedIg] = useState("");
   const [publishMode, setPublishMode] = useState<"now" | "schedule">("now");
@@ -1408,6 +1409,22 @@ function CreatePostModal({
   }, [hasTg, hasIg]);
 
   const apiPlatform = tgSel && igSel ? "both" : igSel ? "instagram" : "telegram";
+
+  const handleExpandField = async (fieldKey: string, value: string) => {
+    if (!value?.trim() || expandingField) return;
+    setExpandingField(fieldKey);
+    try {
+      const field = currentFields.find((f) => f.key === fieldKey);
+      const res = await fetch("/api/ai/expand-field", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value, fieldLabel: field?.label ?? fieldKey, postType, projectId: projectId || null }),
+      });
+      const data = await res.json();
+      if (res.ok && data.expanded) setFieldValues((p) => ({ ...p, [fieldKey]: data.expanded }));
+    } catch {}
+    setExpandingField(null);
+  };
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -1549,19 +1566,42 @@ function CreatePostModal({
           {/* Step 2: fill fields + choose platform */}
           {step === "form" && (
             <>
-              {currentFields.map((field) => (
-                <div key={field.key}>
-                  <label className="block ui-label mb-1">{field.label}</label>
-                  {field.multiline ? (
-                    <textarea value={fieldValues[field.key] ?? ""} onChange={(e) => setFieldValues((p) => ({ ...p, [field.key]: e.target.value }))}
-                      placeholder={field.placeholder} className={`${inp} resize-none`}
-                      style={{ height: 76, fontFamily: "inherit", lineHeight: 1.5 }} />
-                  ) : (
-                    <input value={fieldValues[field.key] ?? ""} onChange={(e) => setFieldValues((p) => ({ ...p, [field.key]: e.target.value }))}
-                      placeholder={field.placeholder} className={inp} />
-                  )}
-                </div>
-              ))}
+              {currentFields.map((field) => {
+                const isExpanding = expandingField === field.key;
+                const hasValue = !!(fieldValues[field.key]?.trim());
+                return (
+                  <div key={field.key}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                      <label className="ui-label">{field.label}</label>
+                      {hasValue && (
+                        <button
+                          onClick={() => handleExpandField(field.key, fieldValues[field.key])}
+                          disabled={!!expandingField}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 3,
+                            fontSize: 10, fontWeight: 600,
+                            color: isExpanding ? "var(--tx-3)" : "var(--accent)",
+                            background: "none", border: "none",
+                            cursor: expandingField ? "default" : "pointer",
+                            padding: 0, fontFamily: "inherit", opacity: expandingField && !isExpanding ? 0.4 : 1,
+                          }}
+                        >
+                          {isExpanding ? "⟳ пишу..." : "✦ AI заполнит"}
+                        </button>
+                      )}
+                    </div>
+                    {field.multiline ? (
+                      <textarea value={fieldValues[field.key] ?? ""} onChange={(e) => setFieldValues((p) => ({ ...p, [field.key]: e.target.value }))}
+                        placeholder={field.placeholder} className={`${inp} resize-none`}
+                        style={{ height: 76, fontFamily: "inherit", lineHeight: 1.5, opacity: isExpanding ? 0.5 : 1, transition: "opacity 0.15s" }} />
+                    ) : (
+                      <input value={fieldValues[field.key] ?? ""} onChange={(e) => setFieldValues((p) => ({ ...p, [field.key]: e.target.value }))}
+                        placeholder={field.placeholder} className={inp}
+                        style={{ opacity: isExpanding ? 0.5 : 1, transition: "opacity 0.15s" }} />
+                    )}
+                  </div>
+                );
+              })}
 
               {/* Image upload */}
               <div style={{ marginTop: 4 }}>
