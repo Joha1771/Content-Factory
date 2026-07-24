@@ -14,16 +14,10 @@ import {
   Megaphone,
   Calendar,
   LineChart,
-  Bot,
   ListChecks,
-  FlaskConical,
   FolderOpen,
   Plug,
   Globe,
-  Contact,
-  Users,
-  MessagesSquare,
-  Ticket,
   CreditCard,
   Gift,
   Settings,
@@ -39,7 +33,6 @@ const MARKETING: NavItem[] = [
   { key: "projects", href: "/projects", Icon: FolderOpen },
   { key: "campaigns", href: "/campaigns", Icon: Megaphone },
   { key: "create", href: "/create", Icon: SquarePen },
-  { key: "aiWorkers", href: "/ai-workers", Icon: Bot },
   { key: "landings", href: "/landings", Icon: Globe },
 ];
 
@@ -53,15 +46,7 @@ const BUSINESS: NavItem[] = [
 
 const TOOLS: NavItem[] = [
   { key: "tasks", href: "/tasks", Icon: ListChecks },
-  { key: "abTests", href: "/ab-tests", Icon: FlaskConical },
   { key: "integrations", href: "/integrations", Icon: Plug },
-];
-
-const AGENCY: NavItem[] = [
-  { key: "crm", href: "/crm", Icon: Contact },
-  { key: "team", href: "/team", Icon: Users },
-  { key: "chat", href: "/chat", Icon: MessagesSquare },
-  { key: "tickets", href: "/tickets", Icon: Ticket },
 ];
 
 const ACCOUNT: NavItem[] = [
@@ -76,7 +61,6 @@ function NavContent({ onClose }: { onClose?: () => void }) {
   const [isPending, startTransition] = useTransition();
   const [activeHref, setActiveHref] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [agencyOpen, setAgencyOpen] = useState(false);
   const [marketingOpen, setMarketingOpen] = useState(true);
   const t = useTranslations("nav");
   const locale = useLocale();
@@ -269,17 +253,6 @@ function NavContent({ onClose }: { onClose?: () => void }) {
             <NavButton key={item.href} item={item} />
           ))}
         </div>
-
-        {/* Agency - collapsible */}
-        <Collapsible
-          label={t("groupAgency")}
-          open={agencyOpen}
-          onToggle={() => setAgencyOpen((v) => !v)}
-        >
-          {AGENCY.map((item) => (
-            <NavButton key={item.href} item={item} />
-          ))}
-        </Collapsible>
 
         {/* Account */}
         <div>
