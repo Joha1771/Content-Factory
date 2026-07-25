@@ -54,5 +54,9 @@ coverage/
 
 # Misc
 *.tgz
+*.zip
 .turbo
 FETCH_HEAD
+
+# Claude Code internals
+.claude/
