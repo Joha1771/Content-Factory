@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { query, queryOne } from "@/lib/db";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { getClientIp, rateLimit } from "@/lib/rate-limit";
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
@@ -63,8 +64,24 @@ export async function GET(request: Request) {
   return NextResponse.json(rows);
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rlMin = await rateLimit(`leads-min:${ip}`, 10, 60);
+    if (!rlMin.ok) {
+      return NextResponse.json(
+        { error: "too_many_requests", retryAfter: rlMin.retryAfter },
+        { status: 429, headers: { "Retry-After": String(rlMin.retryAfter) } }
+      );
+    }
+    const rlHr = await rateLimit(`leads-hr:${ip}`, 60, 3600);
+    if (!rlHr.ok) {
+      return NextResponse.json(
+        { error: "too_many_requests", retryAfter: rlHr.retryAfter },
+        { status: 429, headers: { "Retry-After": String(rlHr.retryAfter) } }
+      );
+    }
+
     const { landing_id, name, phone, email, message } = await request.json();
     if (!landing_id) return NextResponse.json({ error: "Missing landing_id" }, { status: 400 });
 

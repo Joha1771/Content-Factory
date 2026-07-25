@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getCurrentUser } from "@/lib/auth";
 import { queryOne, query } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { spendTokens, refundTokens } from "@/lib/ai/tokens";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 const SYSTEM_PROMPT = `Ты — профессиональный SMM-копирайтер. Отвечай ТОЛЬКО валидным JSON без markdown.`;
@@ -31,9 +32,16 @@ Caption: ${ctx.caption}
 };
 
 export async function POST(request: Request) {
+  let userId = "";
+  let gateOk = false;
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    userId = user.id;
+
+    const gate = await spendTokens(user.id, "post_generate");
+    if (!gate.ok) return NextResponse.json({ error: "insufficient_tokens", remaining: gate.remaining, required: gate.required }, { status: 402 });
+    gateOk = true;
 
     const { contentId, field } = (await request.json()) as { contentId: string; field: Field };
 
@@ -79,6 +87,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, field, value: parsed[field] });
   } catch (error: unknown) {
+    if (gateOk) await refundTokens(userId, "post_generate");
     const msg = error instanceof Error ? error.message : "Regeneration failed";
     return NextResponse.json({ error: msg }, { status: 500 });
   }

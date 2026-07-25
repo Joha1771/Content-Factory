@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getCurrentUser } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { spendTokens, refundTokens } from "@/lib/ai/tokens";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -41,6 +42,9 @@ async function searchTrends(niche: string, platform: string): Promise<string> {
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const gate = await spendTokens(user.id, "content_plan");
+  if (!gate.ok) return NextResponse.json({ error: "insufficient_tokens", remaining: gate.remaining, required: gate.required }, { status: 402 });
 
   const { niche, goal, product, audience, budget, dateFrom, dateTo, platforms } = await request.json();
 
@@ -165,6 +169,7 @@ ${trendsBlock || "данные недоступны — опирайся на о
       return NextResponse.json({ error: "AI вернул невалидный JSON", raw }, { status: 500 });
     }
   } catch (err: any) {
+    await refundTokens(user.id, "content_plan");
     console.error("[ai/content-plan]", err?.message);
     return NextResponse.json({ error: err?.message }, { status: 500 });
   }

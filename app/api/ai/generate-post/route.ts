@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getCurrentUser } from "@/lib/auth";
 import { queryOne } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { spendTokens, refundTokens } from "@/lib/ai/tokens";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -273,6 +274,9 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const gate = await spendTokens(user.id, "post_generate");
+  if (!gate.ok) return NextResponse.json({ error: "insufficient_tokens", remaining: gate.remaining, required: gate.required }, { status: 402 });
+
   const { postType, platform, projectId, fields } = await request.json();
 
   const project = projectId
@@ -282,23 +286,29 @@ export async function POST(request: Request) {
   const nicheCategory = detectNicheCategory(project?.niche ?? "");
   const prompt = buildPrompt(postType, platform, fields ?? {}, project ?? {}, nicheCategory);
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 1200,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const raw = (message.content[0] as { text: string }).text.trim();
-
-  if (platform === "both") {
-    const parts = raw.split("===INSTAGRAM===");
-    return NextResponse.json({
-      telegram: parts[0]?.trim() ?? raw,
-      instagram: parts[1]?.trim() ?? raw,
+  try {
+    const message = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1200,
+      messages: [{ role: "user", content: prompt }],
     });
-  }
 
-  return NextResponse.json({ [platform]: raw });
+    const raw = (message.content[0] as { text: string }).text.trim();
+
+    if (platform === "both") {
+      const parts = raw.split("===INSTAGRAM===");
+      return NextResponse.json({
+        telegram: parts[0]?.trim() ?? raw,
+        instagram: parts[1]?.trim() ?? raw,
+      });
+    }
+
+    return NextResponse.json({ [platform]: raw });
+  } catch (err: any) {
+    await refundTokens(user.id, "post_generate");
+    console.error("[ai/generate-post]", err?.message);
+    return NextResponse.json({ error: err?.message || "AI error" }, { status: 500 });
+  }
 }
 
 // ─── GET — возвращает конфиг полей для фронтенда ────────────────────────────

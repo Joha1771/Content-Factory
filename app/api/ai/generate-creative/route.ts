@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getCurrentUser } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { spendTokens, refundTokens } from "@/lib/ai/tokens";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -38,6 +39,9 @@ function buildContext(p: Record<string, any>) {
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const gate = await spendTokens(user.id, "creative_gen");
+  if (!gate.ok) return NextResponse.json({ error: "insufficient_tokens", remaining: gate.remaining, required: gate.required }, { status: 402 });
 
   const params = await request.json();
   const { platform, subtype, variationIndex = 0 } = params;
@@ -218,6 +222,7 @@ ${angleBlock}
       return NextResponse.json({ caption: raw });
     }
   } catch (err: any) {
+    await refundTokens(user.id, "creative_gen");
     console.error("[ai/generate-creative]", err?.message || err);
     return NextResponse.json({ error: err?.message || "AI error" }, { status: 500 });
   }

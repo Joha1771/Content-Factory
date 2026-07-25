@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { getClientIp, rateLimit } from "@/lib/rate-limit";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -46,8 +47,17 @@ PostCentro — это платформа для автоматической г�
 
 Отвечай кратко, по делу, на том языке на котором пишет пользователь. Если не знаешь ответа — честно скажи.`;
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rl = await rateLimit(`support:${ip}`, 15, 3600);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: "too_many_requests", retryAfter: rl.retryAfter },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfter) } }
+      );
+    }
+
     const { messages } = await request.json();
 
     const response = await client.messages.create({

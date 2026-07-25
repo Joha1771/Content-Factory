@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { query, queryOne } from "@/lib/db";
+import { getClientIp, rateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rl = await rateLimit(`reset:${ip}`, 10, 3600);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: "too_many_requests", retryAfter: rl.retryAfter },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfter) } }
+      );
+    }
+
     const { token, password } = await req.json();
 
     if (!token || !password) {

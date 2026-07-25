@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { queryOne } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
+import { spendTokens, refundTokens } from "@/lib/ai/tokens";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -23,6 +24,9 @@ const LANDING_NICHES = [
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const gate = await spendTokens(user.id, "landing_gen");
+  if (!gate.ok) return NextResponse.json({ error: "insufficient_tokens", remaining: gate.remaining, required: gate.required }, { status: 402 });
 
   const { projectId } = await req.json();
   if (!projectId) return NextResponse.json({ error: "projectId required" }, { status: 400 });
@@ -82,6 +86,7 @@ export async function POST(req: NextRequest) {
       tone: TONE_MAP[project.tone] || "профессиональный",
     });
   } catch (err: any) {
+    await refundTokens(user.id, "landing_gen");
     console.error("[landings/from-project]", err?.message);
     return NextResponse.json({ error: err?.message || "Generation failed" }, { status: 500 });
   }

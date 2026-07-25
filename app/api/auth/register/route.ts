@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { hashPassword, createToken, COOKIE_NAME } from "@/lib/auth";
+import { getClientIp, rateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rl = await rateLimit(`register:${ip}`, 5, 3600);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: "too_many_requests", retryAfter: rl.retryAfter },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfter) } }
+      );
+    }
+
     const { email, password, full_name } = await req.json();
 
     if (!email || !password) {

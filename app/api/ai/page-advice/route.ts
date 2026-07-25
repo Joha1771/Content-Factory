@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { queryOne, query } from "@/lib/db";
+import { spendTokens, refundTokens } from "@/lib/ai/tokens";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -157,6 +158,9 @@ export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const gate = await spendTokens(user.id, "project_ai");
+  if (!gate.ok) return NextResponse.json({ error: "insufficient_tokens", remaining: gate.remaining, required: gate.required }, { status: 402 });
+
   let body: any = {};
   try { body = await req.json(); } catch {}
   const pathname: string = body.pathname ?? body.page ?? "";
@@ -205,6 +209,7 @@ ${context}
     const contextLabel = context.split("\n").find(l => l.startsWith("Страница:"))?.replace("Страница: ", "") ?? "";
     return NextResponse.json({ tips: parsed.tips ?? [], context: contextLabel });
   } catch (err: any) {
+    await refundTokens(user.id, "project_ai");
     console.error("[page-advice] error:", err?.message);
     return NextResponse.json({ tips: [], context: "" }, { status: 500 });
   }

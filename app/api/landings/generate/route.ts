@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { queryOne } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { spendTokens, refundTokens } from "@/lib/ai/tokens";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -79,9 +80,16 @@ cta: {"type":"cta","title":"...","subtitle":"...","cta":"...","note":"..."}
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  let userId = "";
+  let gateOk = false;
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    userId = user.id;
+
+    const gate = await spendTokens(user.id, "landing_gen");
+    if (!gate.ok) return NextResponse.json({ error: "insufficient_tokens", remaining: gate.remaining, required: gate.required }, { status: 402 });
+    gateOk = true;
 
     const body = await req.json();
     const { businessName, offer, audience, brandColor, bgImage, heroImage, tone, autoCloseDays, routing } = body;
@@ -106,6 +114,7 @@ export async function POST(req: NextRequest) {
     try {
       parsed = JSON.parse(cleaned);
     } catch {
+      await refundTokens(userId, "landing_gen");
       console.error("[landings/generate] JSON parse error:", cleaned.slice(0, 500));
       return NextResponse.json({ error: "AI вернул некорректный JSON. Попробуйте ещё раз." }, { status: 500 });
     }
@@ -141,6 +150,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ id: landing?.id, slug });
   } catch (err: any) {
+    if (gateOk) await refundTokens(userId, "landing_gen");
     console.error("[landings/generate]", err);
     return NextResponse.json({ error: err.message || "Внутренняя ошибка" }, { status: 500 });
   }

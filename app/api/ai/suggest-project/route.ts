@@ -1,12 +1,16 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getCurrentUser } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { spendTokens, refundTokens } from "@/lib/ai/tokens";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const gate = await spendTokens(user.id, "project_ai");
+  if (!gate.ok) return NextResponse.json({ error: "insufficient_tokens", remaining: gate.remaining, required: gate.required }, { status: 402 });
 
   const { name, niche, keywords, logoBase64, logoMime } = await request.json();
 
@@ -78,6 +82,7 @@ ${name ? `Название бренда: ${name}` : "Определи назва
     const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
     return NextResponse.json(parsed);
   } catch (err: any) {
+    await refundTokens(user.id, "project_ai");
     console.error("[ai/suggest-project]", err?.message || err);
     return NextResponse.json({ error: err?.message || "Generation failed" }, { status: 500 });
   }
