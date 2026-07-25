@@ -40,7 +40,6 @@ export function AiAdvisorPanel({ pathname }: { pathname: string }) {
   const [error, setError] = useState(false);
   const [addedTasks, setAddedTasks] = useState<Record<number, boolean>>({});
   const [addingTask, setAddingTask] = useState<number | null>(null);
-  const [prevPathname, setPrevPathname] = useState("");
 
   useEffect(() => {
     try {
@@ -89,18 +88,16 @@ export function AiAdvisorPanel({ pathname }: { pathname: string }) {
   }, []);
 
   useEffect(() => {
-    if (pathname === prevPathname) return;
-    setPrevPathname(pathname);
-    setTips([]);
-    setContextLabel("");
-    if (!collapsed) fetchTips(pathname);
-  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!collapsed && tips.length === 0 && !loading && pathname) {
-      fetchTips(pathname);
+    setAddedTasks({});
+    const cached = loadCache(pathname);
+    if (cached) {
+      setTips(cached.tips);
+      setContextLabel(cached.contextLabel);
+    } else {
+      setTips([]);
+      setContextLabel("");
     }
-  }, [collapsed]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   const handleAddTask = async (tip: Tip, idx: number) => {
     if (addedTasks[idx] || addingTask === idx) return;
@@ -188,6 +185,18 @@ export function AiAdvisorPanel({ pathname }: { pathname: string }) {
               style={{ fontSize: 11, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
             >
               Попробовать снова
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && tips.length === 0 && (
+          <div style={{ textAlign: "center", padding: "20px 0" }}>
+            <p style={{ fontSize: 11, color: "var(--tx-3)", marginBottom: 8 }}>Советы ещё не загружены</p>
+            <button
+              onClick={() => fetchTips(pathname, true)}
+              style={{ fontSize: 11, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+            >
+              Получить советы
             </button>
           </div>
         )}
