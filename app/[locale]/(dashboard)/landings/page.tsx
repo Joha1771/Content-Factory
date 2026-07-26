@@ -18,6 +18,8 @@ type LandingPage = {
   logo_url: string | null;
   created_at: string;
   updated_at: string;
+  views: number;
+  leads_count: number;
 };
 
 type Lead = {
@@ -227,6 +229,14 @@ export default function LandingsPage() {
                   <p style={{ fontSize: 12, color: "var(--tx-3)", margin: "4px 0 0" }}>
                     /l/{landing.slug} · {formatDate(landing.updated_at)}
                   </p>
+                  <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--tx-3)" }}>
+                      <Eye size={12} /> {landing.views}
+                    </span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--tx-3)" }}>
+                      <MessageSquare size={12} /> {landing.leads_count}
+                    </span>
+                  </div>
                 </div>
 
                 <div style={{ display: "flex", gap: 6, padding: "0 12px 12px", borderTop: "1px solid var(--line)", paddingTop: 10 }} onClick={(e) => e.stopPropagation()}>
