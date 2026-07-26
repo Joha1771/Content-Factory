@@ -20,8 +20,9 @@ import {
   LogOut,
   ChevronDown,
   type LucideIcon,
+  Globe,
   // MVP-hidden icons (раскомментировать при включении пункта):
-  // Megaphone, Globe, Gauge, ListChecks, Gift
+  // Megaphone, Gauge, ListChecks, Gift
 } from "lucide-react";
 
 type NavItem = { key: string; href: string; Icon: LucideIcon };
@@ -30,7 +31,7 @@ const MARKETING: NavItem[] = [
   { key: "projects", href: "/projects", Icon: FolderOpen },
   // { key: "campaigns", href: "/campaigns", Icon: Megaphone }, // MVP: hidden
   { key: "create", href: "/create", Icon: SquarePen },
-  // { key: "landings", href: "/landings", Icon: Globe }, // MVP: hidden
+  { key: "landings", href: "/landings", Icon: Globe },
 ];
 
 const BUSINESS: NavItem[] = [
