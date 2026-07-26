@@ -1,6 +1,21 @@
 "use client";
 import { useState, useEffect } from "react";
+import Script from "next/script";
 import LandingRenderer, { Block } from "@/components/landing/LandingRenderer";
+
+type PixelsConfig = {
+  metaPixelId?: string;
+  yandexMetrikaId?: string;
+  gaId?: string;
+};
+
+type AfterSubmitConfig = {
+  mode?: string;
+  message?: string;
+  redirectUrl?: string;
+  telegramUrl?: string;
+  whatsappPhone?: string;
+};
 
 type Props = {
   landingId: string;
@@ -10,6 +25,8 @@ type Props = {
   brandColor?: string;
   autoCloseDays?: number | null;
   widgets?: { chat?: boolean; quickCall?: boolean };
+  pixels?: PixelsConfig;
+  afterSubmit?: AfterSubmitConfig;
 };
 
 function useCountdown(deadline: Date | null) {
@@ -31,7 +48,9 @@ function useCountdown(deadline: Date | null) {
   return timeLeft;
 }
 
-export default function PublicLandingClient({ landingId, createdAt, blocks, bgImage, brandColor, autoCloseDays, widgets }: Props) {
+export default function PublicLandingClient({
+  landingId, createdAt, blocks, bgImage, brandColor, autoCloseDays, widgets, pixels, afterSubmit,
+}: Props) {
   const deadline = autoCloseDays != null
     ? (() => { const d = new Date(createdAt); d.setDate(d.getDate() + autoCloseDays); return d; })()
     : null;
@@ -42,15 +61,51 @@ export default function PublicLandingClient({ landingId, createdAt, blocks, bgIm
 
   const countdown = useCountdown(showCountdown ? deadline : null);
 
-  const handleLeadSubmit = async (data: { name: string; phone: string }) => {
+  // Feature 6: UTM/Source capture
+  const [source, setSource] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const captured: Record<string, string> = {};
+    for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"]) {
+      const val = params.get(key);
+      if (val) captured[key] = val;
+    }
+    if (document.referrer) {
+      try {
+        captured["referrer"] = new URL(document.referrer).hostname;
+      } catch {
+        captured["referrer"] = document.referrer;
+      }
+    }
+    setSource(captured);
+  }, []);
+
+  const handleLeadSubmit = async (data: { name: string; phone: string; honeypot: string; loadedAt: number }) => {
     const res = await fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ landing_id: landingId, name: data.name, phone: data.phone }),
+      body: JSON.stringify({
+        landing_id: landingId,
+        name: data.name,
+        phone: data.phone,
+        honeypot: data.honeypot,
+        loadedAt: data.loadedAt,
+        source,
+      }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "Ошибка сервера");
+      throw new Error((err as any).error || "Ошибка сервера");
+    }
+    // Feature 1: Fire pixel events on success
+    if (pixels?.metaPixelId) {
+      (window as any).fbq?.("track", "Lead");
+    }
+    if (pixels?.yandexMetrikaId) {
+      (window as any).ym?.(Number(pixels.yandexMetrikaId), "reachGoal", "lead");
+    }
+    if (pixels?.gaId) {
+      (window as any).gtag?.("event", "generate_lead");
     }
   };
 
@@ -70,6 +125,45 @@ export default function PublicLandingClient({ landingId, createdAt, blocks, bgIm
 
   return (
     <div style={{ position: "relative" }}>
+      {/* Feature 1: Pixel scripts */}
+      {pixels?.metaPixelId && (
+        <>
+          <Script id="meta-pixel" strategy="afterInteractive">{`
+            !function(f,b,e,v,n,t,s)
+            {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+            n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+            if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+            n.queue=[];t=b.createElement(e);t.async=!0;
+            t.src=v;s=b.getElementsByTagName(e)[0];
+            s.parentNode.insertBefore(t,s)}(window, document,'script',
+            'https://connect.facebook.net/en_US/fbevents.js');
+            fbq('init', '${pixels.metaPixelId}');
+            fbq('track', 'PageView');
+          `}</Script>
+        </>
+      )}
+      {pixels?.yandexMetrikaId && (
+        <Script id="yandex-metrika" strategy="afterInteractive">{`
+          (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+          m[i].l=1*new Date();
+          for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+          k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+          (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+          ym(${pixels.yandexMetrikaId}, "init", { clickmap:true, trackLinks:true, accurateTrackBounce:true });
+        `}</Script>
+      )}
+      {pixels?.gaId && (
+        <>
+          <Script id="ga-script" strategy="afterInteractive" src={`https://www.googletagmanager.com/gtag/js?id=${pixels.gaId}`} />
+          <Script id="ga-init" strategy="afterInteractive">{`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${pixels.gaId}');
+          `}</Script>
+        </>
+      )}
+
       {/* Deadline banner */}
       {deadline && !isExpired && (
         <div style={{ background: "#1A1A18", color: "#fff", textAlign: "center", padding: "10px 16px", fontSize: 13, fontWeight: 500 }}>
@@ -89,6 +183,7 @@ export default function PublicLandingClient({ landingId, createdAt, blocks, bgIm
         bgImage={bgImage}
         brandColor={brandColor}
         onLeadSubmit={handleLeadSubmit}
+        afterSubmit={afterSubmit}
       />
 
       {/* Chat widget */}

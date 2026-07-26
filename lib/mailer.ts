@@ -86,6 +86,36 @@ export async function sendPasswordResetEmail(email: string, token: string, local
   await sendEmail(email, subjects[locale] ?? subjects.ru, bodies[locale] ?? bodies.ru);
 }
 
+export async function sendLeadNotificationEmail(
+  ownerEmail: string,
+  lead: { name?: string; phone?: string; email?: string; message?: string },
+  landingTitle: string
+) {
+  const rows = [
+    lead.name    ? `<tr><td style="padding:4px 0;color:rgba(45,27,78,0.5);font-size:13px;width:90px">Имя</td><td style="padding:4px 0;font-size:13px;color:#2d1b4e;font-weight:500">${lead.name}</td></tr>` : "",
+    lead.phone   ? `<tr><td style="padding:4px 0;color:rgba(45,27,78,0.5);font-size:13px">Телефон</td><td style="padding:4px 0;font-size:13px;color:#2d1b4e;font-weight:500">${lead.phone}</td></tr>` : "",
+    lead.email   ? `<tr><td style="padding:4px 0;color:rgba(45,27,78,0.5);font-size:13px">Email</td><td style="padding:4px 0;font-size:13px;color:#2d1b4e;font-weight:500">${lead.email}</td></tr>` : "",
+    lead.message ? `<tr><td style="padding:4px 0;color:rgba(45,27,78,0.5);font-size:13px">Сообщение</td><td style="padding:4px 0;font-size:13px;color:#2d1b4e;font-weight:500">${lead.message}</td></tr>` : "",
+  ].filter(Boolean).join("");
+
+  const html = `
+    <div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:40px 24px;background:#f0ebe3">
+      <div style="background:#2d1b4e;padding:32px;border-radius:2px;text-align:center;margin-bottom:32px">
+        <span style="font-family:Georgia,serif;font-size:28px;font-weight:300;color:#f0ebe3;letter-spacing:4px">mv<span style="color:#c9847a">ira</span></span>
+      </div>
+      <h1 style="font-family:Georgia,serif;font-weight:300;font-size:26px;color:#2d1b4e;margin:0 0 8px">Новая заявка</h1>
+      <p style="color:rgba(45,27,78,0.5);font-size:13px;margin:0 0 24px">Лендинг: <strong style="color:#2d1b4e">${landingTitle}</strong></p>
+      <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:4px;padding:16px 20px;display:block;box-sizing:border-box">
+        ${rows}
+      </table>
+      <hr style="border:none;border-top:1px solid rgba(45,27,78,0.1);margin:24px 0">
+      <p style="color:rgba(45,27,78,0.3);font-size:11px;text-align:center;margin:0">mvira.uz · AI Marketing Platform</p>
+    </div>
+  `;
+
+  await sendEmail(ownerEmail, `Новая заявка — ${landingTitle}`, html);
+}
+
 export async function sendInvitationEmail(
   email: string,
   workspaceName: string,

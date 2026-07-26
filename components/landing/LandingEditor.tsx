@@ -14,7 +14,15 @@ import {
 type LP = {
   id: string; title: string; slug: string; published: boolean;
   blocks: Block[]; bg_image: string | null;
-  settings: { brandColor?: string; tone?: string; autoCloseDays?: number | null; routing?: { aiCallback?: boolean; crm?: boolean; payments?: boolean } };
+  settings: {
+    brandColor?: string;
+    tone?: string;
+    autoCloseDays?: number | null;
+    routing?: { aiCallback?: boolean; crm?: boolean; payments?: boolean };
+    pixels?: { metaPixelId?: string; yandexMetrikaId?: string; gaId?: string };
+    seo?: { description?: string; ogImage?: string };
+    afterSubmit?: { mode?: string; message?: string; redirectUrl?: string; telegramUrl?: string; whatsappPhone?: string };
+  };
   template_id: string; created_at?: string; updated_at?: string;
 };
 type Lead = { id: string; name: string | null; phone: string | null; status: string; created_at: string };
@@ -71,6 +79,9 @@ export default function LandingEditor({ id, onBack, onDone }: LandingEditorProps
   const [brandColor, setBrandColor]       = useState("#4F46E5");
   const [autoCloseDays, setAutoCloseDays] = useState<number | null>(null);
   const [routing, setRouting]             = useState({ aiCallback: true, crm: true, payments: false });
+  const [pixels, setPixels]               = useState({ metaPixelId: "", yandexMetrikaId: "", gaId: "" });
+  const [seoDesc, setSeoDesc]             = useState("");
+  const [afterSubmit, setAfterSubmit]     = useState({ mode: "message", message: "", redirectUrl: "", telegramUrl: "", whatsappPhone: "" });
   const [saving, setSaving]               = useState(false);
   const [saved, setSaved]                 = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -110,6 +121,19 @@ export default function LandingEditor({ id, onBack, onDone }: LandingEditorProps
       crm:        landing.settings?.routing?.crm ?? true,
       payments:   landing.settings?.routing?.payments ?? false,
     });
+    setPixels({
+      metaPixelId:      landing.settings?.pixels?.metaPixelId      ?? "",
+      yandexMetrikaId:  landing.settings?.pixels?.yandexMetrikaId  ?? "",
+      gaId:             landing.settings?.pixels?.gaId             ?? "",
+    });
+    setSeoDesc(landing.settings?.seo?.description ?? "");
+    setAfterSubmit({
+      mode:          landing.settings?.afterSubmit?.mode          ?? "message",
+      message:       landing.settings?.afterSubmit?.message       ?? "",
+      redirectUrl:   landing.settings?.afterSubmit?.redirectUrl   ?? "",
+      telegramUrl:   landing.settings?.afterSubmit?.telegramUrl   ?? "",
+      whatsappPhone: landing.settings?.afterSubmit?.whatsappPhone ?? "",
+    });
   }, [landing]);
 
   // ── Mutations ──────────────────────────────────────────────────────────────
@@ -120,7 +144,19 @@ export default function LandingEditor({ id, onBack, onDone }: LandingEditorProps
         content: {
           blocks, template_id: templateType,
           bg_image: landing?.bg_image ?? null,
-          settings: { brandColor, tone: landing?.settings?.tone, autoCloseDays, routing },
+          settings: {
+            brandColor,
+            tone: landing?.settings?.tone,
+            autoCloseDays,
+            routing,
+            pixels: {
+              metaPixelId:     pixels.metaPixelId     || undefined,
+              yandexMetrikaId: pixels.yandexMetrikaId || undefined,
+              gaId:            pixels.gaId            || undefined,
+            },
+            seo: { description: seoDesc || undefined },
+            afterSubmit,
+          },
         },
       };
       if (publish !== undefined) body.published = publish;
@@ -399,6 +435,60 @@ export default function LandingEditor({ id, onBack, onDone }: LandingEditorProps
                     <Toggle on={!!(formBlk as any)?.dark} onChange={v => patchAndTouch("form", { dark: v })} />
                   </div>
                 </Section>
+                <Section label="После отправки">
+                  <F label="Действие">
+                    <select
+                      value={afterSubmit.mode}
+                      onChange={e => { setAfterSubmit(p => ({ ...p, mode: e.target.value })); touch(); }}
+                      style={{ ...inp, cursor: "pointer" }}
+                    >
+                      <option value="message">Показать сообщение</option>
+                      <option value="redirect">Перенаправить на URL</option>
+                      <option value="telegram">Открыть Telegram</option>
+                      <option value="whatsapp">Открыть WhatsApp</option>
+                    </select>
+                  </F>
+                  {afterSubmit.mode === "message" && (
+                    <F label="Текст сообщения">
+                      <input
+                        value={afterSubmit.message}
+                        onChange={e => { setAfterSubmit(p => ({ ...p, message: e.target.value })); touch(); }}
+                        style={inp}
+                        placeholder="Спасибо! Мы свяжемся с вами скоро."
+                      />
+                    </F>
+                  )}
+                  {afterSubmit.mode === "redirect" && (
+                    <F label="URL для перенаправления">
+                      <input
+                        value={afterSubmit.redirectUrl}
+                        onChange={e => { setAfterSubmit(p => ({ ...p, redirectUrl: e.target.value })); touch(); }}
+                        style={inp}
+                        placeholder="https://example.com/thank-you"
+                      />
+                    </F>
+                  )}
+                  {afterSubmit.mode === "telegram" && (
+                    <F label="Ссылка Telegram">
+                      <input
+                        value={afterSubmit.telegramUrl}
+                        onChange={e => { setAfterSubmit(p => ({ ...p, telegramUrl: e.target.value })); touch(); }}
+                        style={inp}
+                        placeholder="https://t.me/yourusername"
+                      />
+                    </F>
+                  )}
+                  {afterSubmit.mode === "whatsapp" && (
+                    <F label="Номер WhatsApp">
+                      <input
+                        value={afterSubmit.whatsappPhone}
+                        onChange={e => { setAfterSubmit(p => ({ ...p, whatsappPhone: e.target.value })); touch(); }}
+                        style={inp}
+                        placeholder="+998901234567"
+                      />
+                    </F>
+                  )}
+                </Section>
               </Panel>
             )}
 
@@ -412,12 +502,42 @@ export default function LandingEditor({ id, onBack, onDone }: LandingEditorProps
                   <F label="URL страницы">
                     <input value={`mvira.uz/l/${landing.slug}`} readOnly style={{ ...inp, background: C.bg, fontFamily: "monospace", fontSize: 12 }} />
                   </F>
+                  <F label="Описание (OG/SEO)">
+                    <textarea
+                      value={seoDesc}
+                      onChange={e => { setSeoDesc(e.target.value); touch(); }}
+                      rows={3}
+                      style={{ ...inp, resize: "vertical" }}
+                      placeholder="Краткое описание страницы для соцсетей и поисковиков"
+                    />
+                  </F>
                 </Section>
-                <div style={{ padding: "12px 20px", background: `${C.indigo}08`, margin: "0 -20px", borderTop: `1px solid ${C.border}` }}>
-                  <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
-                    SEO-заголовок и описание генерируется AI автоматически на основе контента лендинга.
-                  </p>
-                </div>
+                <Section label="Пиксели аналитики">
+                  <F label="Meta Pixel ID">
+                    <input
+                      value={pixels.metaPixelId}
+                      onChange={e => { setPixels(p => ({ ...p, metaPixelId: e.target.value })); touch(); }}
+                      style={inp}
+                      placeholder="123456789012345"
+                    />
+                  </F>
+                  <F label="Яндекс Метрика ID">
+                    <input
+                      value={pixels.yandexMetrikaId}
+                      onChange={e => { setPixels(p => ({ ...p, yandexMetrikaId: e.target.value })); touch(); }}
+                      style={inp}
+                      placeholder="12345678"
+                    />
+                  </F>
+                  <F label="Google Analytics ID">
+                    <input
+                      value={pixels.gaId}
+                      onChange={e => { setPixels(p => ({ ...p, gaId: e.target.value })); touch(); }}
+                      style={inp}
+                      placeholder="G-XXXXXXXXXX"
+                    />
+                  </F>
+                </Section>
               </Panel>
             )}
 

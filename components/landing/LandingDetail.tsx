@@ -41,7 +41,42 @@ type Lead = {
   message: string | null;
   status: string;
   created_at: string;
+  source?: Record<string, string> | null;
 };
+
+// Feature 4: CSV Export helpers
+function formatSource(source: any): string {
+  if (!source || typeof source !== "object") return "";
+  if (source.utm_source) {
+    return source.utm_medium ? `${source.utm_source}/${source.utm_medium}` : source.utm_source;
+  }
+  if (source.referrer) return source.referrer;
+  return "";
+}
+
+function exportLeadsCSV(leads: Lead[], landingTitle: string, filename: string) {
+  const BOM = "﻿";
+  const header = ["Имя", "Телефон", "Email", "Лендинг", "Источник", "Дата"].join(",");
+  const rows = leads.map(l => {
+    const cols = [
+      l.name ?? "",
+      l.phone ?? "",
+      l.email ?? "",
+      landingTitle,
+      formatSource(l.source),
+      new Date(l.created_at).toLocaleString("ru-RU"),
+    ];
+    return cols.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",");
+  });
+  const csv = BOM + [header, ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 // ── Template config ───────────────────────────────────────────────────────────
 const TEMPLATES = [
@@ -376,38 +411,59 @@ export default function LandingDetail({ id, onBack }: LandingDetailProps) {
                     <p style={{ fontSize: 13, color: "var(--tx-3)", margin: 0 }}>Появятся когда посетители заполнят форму на лендинге</p>
                   </div>
                 ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {leads.map(lead => (
-                      <div key={lead.id} style={{ display: "flex", gap: 12, padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 10 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--chip)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 14, fontWeight: 700, color: "var(--tx-2)" }}>
-                          {lead.name ? lead.name[0].toUpperCase() : "?"}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)" }}>{lead.name || "Без имени"}</span>
-                            <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 6, background: lead.status === "new" ? "#dbeafe" : "var(--chip)", color: lead.status === "new" ? "#1d4ed8" : "var(--tx-3)", fontWeight: 600 }}>
-                              {lead.status === "new" ? "Новая" : lead.status}
-                            </span>
+                  <>
+                    {/* Feature 4: CSV Export button */}
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                      <button
+                        onClick={() => exportLeadsCSV(
+                          leads,
+                          landing?.title ?? "",
+                          `leads-${landing?.slug ?? id}-${new Date().toISOString().slice(0,10)}.csv`
+                        )}
+                        style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--tx-2)", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                      >
+                        ⬇ Экспорт CSV
+                      </button>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {leads.map(lead => (
+                        <div key={lead.id} style={{ display: "flex", gap: 12, padding: "12px 14px", background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 10 }}>
+                          <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--chip)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 14, fontWeight: 700, color: "var(--tx-2)" }}>
+                            {lead.name ? lead.name[0].toUpperCase() : "?"}
                           </div>
-                          <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-                            {lead.phone && (
-                              <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--tx-2)" }}>
-                                <Phone size={11} /> {lead.phone}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)" }}>{lead.name || "Без имени"}</span>
+                              <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 6, background: lead.status === "new" ? "#dbeafe" : "var(--chip)", color: lead.status === "new" ? "#1d4ed8" : "var(--tx-3)", fontWeight: 600 }}>
+                                {lead.status === "new" ? "Новая" : lead.status}
                               </span>
-                            )}
-                            {lead.email && (
-                              <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--tx-2)" }}>
-                                <Mail size={11} /> {lead.email}
-                              </span>
-                            )}
+                              {/* Feature 6: Source chip */}
+                              {formatSource(lead.source) && (
+                                <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 5, background: "var(--chip)", color: "var(--tx-3)", fontFamily: "monospace" }}>
+                                  {formatSource(lead.source)}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+                              {lead.phone && (
+                                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--tx-2)" }}>
+                                  <Phone size={11} /> {lead.phone}
+                                </span>
+                              )}
+                              {lead.email && (
+                                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--tx-2)" }}>
+                                  <Mail size={11} /> {lead.email}
+                                </span>
+                              )}
+                            </div>
                           </div>
+                          <span style={{ fontSize: 11, color: "var(--tx-3)", flexShrink: 0, whiteSpace: "nowrap" }}>
+                            {new Date(lead.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
+                          </span>
                         </div>
-                        <span style={{ fontSize: 11, color: "var(--tx-3)", flexShrink: 0, whiteSpace: "nowrap" }}>
-                          {new Date(lead.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  </>
                 )
               )}
 

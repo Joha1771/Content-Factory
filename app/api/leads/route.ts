@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { query, queryOne } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
+import { sendLeadNotificationEmail } from "@/lib/mailer";
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
@@ -82,7 +83,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { landing_id, name, phone, email, message } = await request.json();
+    const body = await request.json();
+    const { landing_id, name, phone, email, message, honeypot, loadedAt, source } = body;
+
+    // ── Feature 5: Bot protection ──────────────────────────────────────────────
+    if (honeypot) {
+      // Silent drop — don't reveal to bot
+      return NextResponse.json({ ok: true });
+    }
+    if (typeof loadedAt === "number" && Date.now() - loadedAt < 2000) {
+      // Too fast — likely a bot
+      return NextResponse.json({ ok: true });
+    }
+
     if (!landing_id) return NextResponse.json({ error: "Missing landing_id" }, { status: 400 });
 
     const landing = await queryOne<{ user_id: string; title: string; content: any }>(
@@ -94,12 +107,47 @@ export async function POST(request: NextRequest) {
     const crmEnabled      = routing.crm      !== false; // default true
     const aiCallback      = routing.aiCallback !== false; // default true
 
+    let insertedId: string | null = null;
+
     if (crmEnabled) {
-      await query(
+      const inserted = await queryOne<{ id: string }>(
         `INSERT INTO leads (landing_id, user_id, name, phone, email, message, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'new')`,
+         VALUES ($1, $2, $3, $4, $5, $6, 'new') RETURNING id`,
         [landing ? landing_id : null, landing?.user_id ?? null, name ?? null, phone ?? null, email ?? null, message ?? null]
       );
+      insertedId = inserted?.id ?? null;
+
+      // ── Feature 6: Save UTM source (silent if column not migrated yet) ──────
+      if (insertedId && source && typeof source === "object") {
+        const ALLOWED_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "referrer"];
+        const safeSource: Record<string, string> = {};
+        for (const key of ALLOWED_KEYS) {
+          if (typeof source[key] === "string") {
+            safeSource[key] = String(source[key]).slice(0, 200);
+          }
+        }
+        if (Object.keys(safeSource).length > 0) {
+          await query(
+            "UPDATE leads SET source = $1 WHERE id = $2",
+            [JSON.stringify(safeSource), insertedId]
+          ).catch(() => {});
+        }
+      }
+
+      // ── Feature 3: Email notification to owner ───────────────────────────────
+      if (landing?.user_id) {
+        const ownerRow = await queryOne<{ email: string }>(
+          "SELECT email FROM users WHERE id = $1",
+          [landing.user_id]
+        );
+        if (ownerRow?.email) {
+          sendLeadNotificationEmail(
+            ownerRow.email,
+            { name, phone, email, message },
+            landing.title
+          ).catch(() => {});
+        }
+      }
     }
 
     if (aiCallback) {

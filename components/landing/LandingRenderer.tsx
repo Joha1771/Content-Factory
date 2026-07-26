@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 // ── Block types ───────────────────────────────────────────────────────────────
 export type HeroBlock = {
@@ -93,12 +93,21 @@ export type Block =
   | ShowcaseBlock | PriceBlock | FormBlock | FaqBlock | CtaBlock | TextBlock | MascotBlock;
 
 // ── Props ─────────────────────────────────────────────────────────────────────
+type AfterSubmitConfig = {
+  mode?: string;
+  message?: string;
+  redirectUrl?: string;
+  telegramUrl?: string;
+  whatsappPhone?: string;
+};
+
 type Props = {
   blocks: Block[];
   bgImage?: string;
   brandColor?: string;
-  onLeadSubmit?: (data: { name: string; phone: string }) => Promise<void>;
+  onLeadSubmit?: (data: { name: string; phone: string; honeypot: string; loadedAt: number }) => Promise<void>;
   preview?: boolean;
+  afterSubmit?: AfterSubmitConfig;
   // legacy compat
   selectedIndex?: number | null;
   onSelectBlock?: (index: number) => void;
@@ -137,12 +146,15 @@ function FaqItem({ q, a, accent, preview }: { q: string; a: string; accent: stri
 // ── Renderer ──────────────────────────────────────────────────────────────────
 export default function LandingRenderer({
   blocks, bgImage, brandColor = "#4F46E5",
-  onLeadSubmit, preview = false,
+  onLeadSubmit, preview = false, afterSubmit,
 }: Props) {
   const [lead, setLead] = useState({ name: "", phone: "" });
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Feature 5: bot protection
+  const [honeypot, setHoneypot] = useState("");
+  const loadedAtRef = useRef(Date.now());
 
   const accent = brandColor;
 
@@ -155,8 +167,16 @@ export default function LandingRenderer({
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await onLeadSubmit(lead);
+      await onLeadSubmit({ ...lead, honeypot, loadedAt: loadedAtRef.current });
       setSubmitted(true);
+      // Feature 7: after-submit action
+      if (afterSubmit?.mode === "redirect" && afterSubmit.redirectUrl) {
+        setTimeout(() => { window.location.href = afterSubmit.redirectUrl!; }, 600);
+      } else if (afterSubmit?.mode === "telegram" && afterSubmit.telegramUrl) {
+        window.open(afterSubmit.telegramUrl, "_blank");
+      } else if (afterSubmit?.mode === "whatsapp" && afterSubmit.whatsappPhone) {
+        window.open(`https://wa.me/${afterSubmit.whatsappPhone.replace(/\D/g, "")}`, "_blank");
+      }
     } catch (err: any) {
       setSubmitError(err.message || "Произошла ошибка. Попробуйте снова.");
     } finally {
@@ -495,10 +515,23 @@ export default function LandingRenderer({
                   )}
                   {submitted ? (
                     <div style={{ textAlign: "center", padding: px("20px 0", "12px 0"), color: "#10B981", fontWeight: 600, fontSize: px(15, 12) }}>
-                      ✓ Заявка принята! Свяжемся с вами скоро.
+                      {afterSubmit?.mode === "message" && afterSubmit.message
+                        ? afterSubmit.message
+                        : "✓ Заявка принята! Свяжемся с вами скоро."}
                     </div>
                   ) : (
-                    <form onSubmit={preview ? (e) => e.preventDefault() : handleSubmit}>
+                    <form onSubmit={preview ? (e) => e.preventDefault() : handleSubmit} style={{ position: "relative" }}>
+                      {/* Feature 5: Honeypot field — hidden from real users, visible to bots */}
+                      <input
+                        type="text"
+                        name="website"
+                        value={preview ? "" : honeypot}
+                        onChange={e => { if (!preview) setHoneypot(e.target.value); }}
+                        autoComplete="off"
+                        tabIndex={-1}
+                        aria-hidden="true"
+                        style={{ position: "absolute", opacity: 0, height: 0, width: 0, left: "-99999px" }}
+                      />
                       {(["Ваше имя", "Номер телефона"] as const).map((ph, fi) => (
                         <input
                           key={fi}

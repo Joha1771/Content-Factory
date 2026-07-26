@@ -33,7 +33,42 @@ type Lead = {
   message: string | null;
   status: string;
   created_at: string;
+  source?: Record<string, string> | null;
 };
+
+// Feature 4: CSV Export helpers
+function formatSource(source: any): string {
+  if (!source || typeof source !== "object") return "";
+  if (source.utm_source) {
+    return source.utm_medium ? `${source.utm_source}/${source.utm_medium}` : source.utm_source;
+  }
+  if (source.referrer) return source.referrer;
+  return "";
+}
+
+function exportLeadsCSV(leads: Lead[], filename: string) {
+  const BOM = "﻿";
+  const header = ["Имя", "Телефон", "Email", "Лендинг", "Источник", "Дата"].join(",");
+  const rows = leads.map(l => {
+    const cols = [
+      l.name ?? "",
+      l.phone ?? "",
+      l.email ?? "",
+      l.landing_title ?? "",
+      formatSource(l.source),
+      new Date(l.created_at).toLocaleString("ru-RU"),
+    ];
+    return cols.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",");
+  });
+  const csv = BOM + [header, ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function LandingsPage() {
   const qc = useQueryClient();
@@ -292,56 +327,73 @@ export default function LandingsPage() {
               </div>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {leads.map((lead) => (
-                <div key={lead.id} style={{ padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, display: "flex", alignItems: "flex-start", gap: 14 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 10, background: "var(--chip)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <span style={{ fontSize: 16 }}>👤</span>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>
-                        {lead.name || "Без имени"}
-                      </p>
-                      {lead.landing_title && (
-                        <span style={{ fontSize: 11, color: "var(--tx-3)", background: "var(--chip)", padding: "2px 8px", borderRadius: 6 }}>
-                          {lead.landing_title}
-                        </span>
-                      )}
-                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: lead.status === "new" ? "#dbeafe" : "var(--chip)", color: lead.status === "new" ? "#1d4ed8" : "var(--tx-3)", fontWeight: 600 }}>
-                        {lead.status === "new" ? "Новая" : lead.status}
-                      </span>
+            <>
+              {/* Feature 4: CSV Export button */}
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                <button
+                  onClick={() => exportLeadsCSV(leads, `leads-${new Date().toISOString().slice(0,10)}.csv`)}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--tx-2)", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
+                >
+                  ⬇ Экспорт CSV
+                </button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {leads.map((lead) => (
+                  <div key={lead.id} style={{ padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, display: "flex", alignItems: "flex-start", gap: 14 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 10, background: "var(--chip)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <span style={{ fontSize: 16 }}>👤</span>
                     </div>
-                    <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                      {lead.phone && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--tx-2)" }}>
-                          <Phone size={12} /> {lead.phone}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>
+                          {lead.name || "Без имени"}
+                        </p>
+                        {lead.landing_title && (
+                          <span style={{ fontSize: 11, color: "var(--tx-3)", background: "var(--chip)", padding: "2px 8px", borderRadius: 6 }}>
+                            {lead.landing_title}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: lead.status === "new" ? "#dbeafe" : "var(--chip)", color: lead.status === "new" ? "#1d4ed8" : "var(--tx-3)", fontWeight: 600 }}>
+                          {lead.status === "new" ? "Новая" : lead.status}
                         </span>
-                      )}
-                      {lead.email && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--tx-2)" }}>
-                          <Mail size={12} /> {lead.email}
+                        {/* Feature 6: Source chip */}
+                        {formatSource(lead.source) && (
+                          <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: "var(--chip)", color: "var(--tx-3)", fontFamily: "monospace" }}>
+                            {formatSource(lead.source)}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                        {lead.phone && (
+                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--tx-2)" }}>
+                            <Phone size={12} /> {lead.phone}
+                          </span>
+                        )}
+                        {lead.email && (
+                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--tx-2)" }}>
+                            <Mail size={12} /> {lead.email}
+                          </span>
+                        )}
+                        {lead.message && (
+                          <span style={{ fontSize: 12, color: "var(--tx-3)", fontStyle: "italic", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            "{lead.message}"
+                          </span>
+                        )}
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--tx-3)" }}>
+                          <Clock size={11} /> {formatTime(lead.created_at)}
                         </span>
-                      )}
-                      {lead.message && (
-                        <span style={{ fontSize: 12, color: "var(--tx-3)", fontStyle: "italic", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          "{lead.message}"
-                        </span>
-                      )}
-                      <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--tx-3)" }}>
-                        <Clock size={11} /> {formatTime(lead.created_at)}
-                      </span>
+                      </div>
                     </div>
+                    {lead.landing_slug && (
+                      <a href={`/l/${lead.landing_slug}`} target="_blank" rel="noreferrer"
+                        style={{ color: "var(--tx-3)", flexShrink: 0 }}>
+                        <ExternalLink size={14} />
+                      </a>
+                    )}
                   </div>
-                  {lead.landing_slug && (
-                    <a href={`/l/${lead.landing_slug}`} target="_blank" rel="noreferrer"
-                      style={{ color: "var(--tx-3)", flexShrink: 0 }}>
-                      <ExternalLink size={14} />
-                    </a>
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}
