@@ -11,29 +11,26 @@ import {
   LayoutDashboard,
   SquarePen,
   Columns3,
-  Megaphone,
   Calendar,
   LineChart,
-  ListChecks,
   FolderOpen,
   Plug,
-  Globe,
   CreditCard,
-  Gift,
   Settings,
   LogOut,
   ChevronDown,
-  Gauge,
   type LucideIcon,
+  // MVP-hidden icons (раскомментировать при включении пункта):
+  // Megaphone, Globe, Gauge, ListChecks, Gift
 } from "lucide-react";
 
 type NavItem = { key: string; href: string; Icon: LucideIcon };
 
 const MARKETING: NavItem[] = [
   { key: "projects", href: "/projects", Icon: FolderOpen },
-  { key: "campaigns", href: "/campaigns", Icon: Megaphone },
+  // { key: "campaigns", href: "/campaigns", Icon: Megaphone }, // MVP: hidden
   { key: "create", href: "/create", Icon: SquarePen },
-  { key: "landings", href: "/landings", Icon: Globe },
+  // { key: "landings", href: "/landings", Icon: Globe }, // MVP: hidden
 ];
 
 const BUSINESS: NavItem[] = [
@@ -41,17 +38,17 @@ const BUSINESS: NavItem[] = [
   { key: "content", href: "/history", Icon: Columns3 },
   { key: "calendar", href: "/calendar", Icon: Calendar },
   { key: "analytics", href: "/analytics", Icon: LineChart },
-  { key: "summary", href: "/summary", Icon: Gauge },
+  // { key: "summary", href: "/summary", Icon: Gauge }, // MVP: hidden
 ];
 
 const TOOLS: NavItem[] = [
-  { key: "tasks", href: "/tasks", Icon: ListChecks },
+  // { key: "tasks", href: "/tasks", Icon: ListChecks }, // MVP: hidden
   { key: "integrations", href: "/integrations", Icon: Plug },
 ];
 
 const ACCOUNT: NavItem[] = [
   { key: "billing", href: "/billing", Icon: CreditCard },
-  { key: "referral", href: "/referral", Icon: Gift },
+  // { key: "referral", href: "/referral", Icon: Gift }, // MVP: hidden
   { key: "settings", href: "/settings", Icon: Settings },
 ];
 
