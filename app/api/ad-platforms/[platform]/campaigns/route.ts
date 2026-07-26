@@ -2,24 +2,6 @@ import { getCurrentUser } from "@/lib/auth";
 import { query, queryOne } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 
-const MOCK_NAMES: Record<string, string[]> = {
-  meta: ["Весенняя акция", "Ретаргетинг", "Look-alike аудитория"],
-  google: ["Поиск — брендовые", "Поиск — общие запросы", "КМС ремаркетинг"],
-  yandex: ["Поиск Яндекс", "РСЯ — интересы", "Смарт-баннеры"],
-};
-
-function mockCampaigns(platform: string) {
-  const names = MOCK_NAMES[platform] ?? ["Кампания 1", "Кампания 2"];
-  return names.map((name, i) => ({
-    id: `mock_${i}`, name, status: i < 2 ? "active" : "paused",
-    spend: Math.round(Math.random() * 18000 + 1500),
-    impressions: Math.round(Math.random() * 250000 + 15000),
-    clicks: Math.round(Math.random() * 4000 + 150),
-    ctr: Number((Math.random() * 2.5 + 0.5).toFixed(2)),
-    leads: Math.round(Math.random() * 25), isMock: true,
-  }));
-}
-
 export async function GET(req: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
   const { platform } = await params;
   const accountId = req.nextUrl.searchParams.get("id");
@@ -144,10 +126,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plat
       return NextResponse.json({ connected: true, campaigns });
     }
   } catch (e: any) {
-    if (platform === "yandex") {
-      return NextResponse.json({ connected: true, campaigns: [], error: String(e?.message ?? "api_error") });
-    }
+    return NextResponse.json({ connected: true, campaigns: [], error: String(e?.message ?? "api_error") });
   }
 
-  return NextResponse.json({ connected: true, campaigns: mockCampaigns(platform), isMock: true });
+  // Platform connected but no API integration yet (VK, TikTok, myTarget, etc.)
+  return NextResponse.json({ connected: true, campaigns: [], no_data: true });
 }

@@ -118,14 +118,6 @@ async function getYandexStats(
   });
 }
 
-function mockStats(rec: any, leads: number) {
-  const spend = rec.monthly_spend ?? Math.round(Math.random() * 45000 + 5000);
-  const impressions = Math.round(spend * 38);
-  const clicks = Math.round(impressions * 0.026);
-  const mockLeads = leads || Math.round(clicks * 0.032);
-  return NextResponse.json({ connected: true, isMock: true, spend, impressions, clicks, ctr: 2.6, leads: mockLeads,
-    conversion: clicks > 0 ? Number(((mockLeads / clicks) * 100).toFixed(2)) : 0 });
-}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
   const { platform } = await params;
@@ -153,10 +145,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plat
     if (platform === "meta" && rec.access_token && rec.account_id) return await getMetaStats(rec, days, leads);
     if (platform === "yandex" && rec.access_token) return await getYandexStats(rec, days, leads, user.id);
   } catch (e: any) {
-    if (platform === "yandex") {
-      return NextResponse.json({ connected: true, isMock: false, error: String(e?.message ?? "api_error") });
-    }
+    return NextResponse.json({ connected: true, no_data: true, spend: 0, impressions: 0, clicks: 0, ctr: 0, leads, conversion: 0, error: String(e?.message ?? "api_error") });
   }
 
-  return mockStats(rec, leads);
+  // Platform connected but no API integration yet (VK, TikTok, myTarget, etc.)
+  return NextResponse.json({ connected: true, no_data: true, spend: 0, impressions: 0, clicks: 0, ctr: 0, leads, conversion: 0 });
 }

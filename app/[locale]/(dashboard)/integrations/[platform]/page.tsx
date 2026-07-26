@@ -190,6 +190,7 @@ function PlatformDetailPageInner() {
   const connected = stats?.connected !== false && campaignsData?.connected !== false;
   const campaigns: any[] = campaignsData?.campaigns ?? [];
   const isMock = stats?.isMock || campaignsData?.isMock;
+  const noData = stats?.no_data || campaignsData?.no_data;
 
   function handleConnect() {
     const urlFn = OAUTH_URLS[platform];
@@ -292,8 +293,13 @@ function PlatformDetailPageInner() {
         </div>
       </div>
 
-      {/* Mock data notice */}
-      {isMock && connected && (
+      {/* No-data notice for unsupported platforms */}
+      {noData && connected && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, marginBottom: 20, fontSize: 13, color: "var(--tx-3)" }}>
+          Статистика для этой платформы появится позже — интеграция скоро
+        </div>
+      )}
+      {isMock && !noData && connected && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: "color-mix(in srgb, var(--accent) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--accent) 30%, transparent)", borderRadius: 8, marginBottom: 20, fontSize: 13, color: "var(--tx-2)" }}>
           <AlertCircle size={14} style={{ color: "var(--accent)" }} />
           Тестовые данные — реальная API не вернула результаты
@@ -313,7 +319,7 @@ function PlatformDetailPageInner() {
       <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden", marginBottom: 24 }}>
         <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontWeight: 600, fontSize: 15, color: "var(--tx-1)" }}>Кампании</span>
-          {campaignsData?.isMock && <span style={{ fontSize: 11, color: "var(--tx-3)" }}>Тестовые данные</span>}
+          {noData && <span style={{ fontSize: 11, color: "var(--tx-3)" }}>Скоро</span>}
         </div>
 
         {campaignsLoading ? (
