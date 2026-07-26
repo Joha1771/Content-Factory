@@ -89,8 +89,8 @@ export default async function AnalyticsPage({
       count: 0,
     };
   });
-  (activityData as { created_at: string }[]).forEach((c) => {
-    const day = days7.find((d) => d.dateKey === c.created_at.split("T")[0]);
+  (activityData as { created_at: string | Date }[]).forEach((c) => {
+    const day = days7.find((d) => d.dateKey === new Date(c.created_at).toISOString().split("T")[0]);
     if (day) day.count++;
   });
 
@@ -103,8 +103,8 @@ export default async function AnalyticsPage({
       count: 0,
     };
   });
-  (recentData as { created_at: string }[]).forEach((c) => {
-    const day = days30.find((d) => d.dateKey === c.created_at.split("T")[0]);
+  (recentData as { created_at: string | Date }[]).forEach((c) => {
+    const day = days30.find((d) => d.dateKey === new Date(c.created_at).toISOString().split("T")[0]);
     if (day) day.count++;
   });
 
