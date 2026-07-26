@@ -10,7 +10,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const token = process.env.BOT_TOKEN;
     if (!token) {
       return NextResponse.json(
         { error: "Bot token not configured" },
