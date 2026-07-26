@@ -236,8 +236,8 @@ export default function ProfilePage() {
                   <div className="bg-chip border border-accent rounded-xl p-4">
                     <p className="text-xs font-medium text-c-2 mb-2">Отправь боту эту команду:</p>
                     <div className="bg-panel border border-accent rounded-lg px-3 py-2 font-mono text-sm text-tx-1 mb-3 select-all">/link {telegramToken}</div>
-                    <a href={`https://t.me/${process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot"}?start=link_${telegramToken}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#2AABEE] text-on-accent text-xs font-medium rounded-lg hover:opacity-90 transition-colors">
-                      Открыть @postcentro_bot
+                    <a href={`https://t.me/${process.env.NEXT_PUBLIC_BOT_USERNAME || "mvi_ra_bot"}?start=link_${telegramToken}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#2AABEE] text-on-accent text-xs font-medium rounded-lg hover:opacity-90 transition-colors">
+                      Открыть @{process.env.NEXT_PUBLIC_BOT_USERNAME || "mvi_ra_bot"}
                     </a>
                     <p className="text-[10px] text-c-2 mt-2">Код действителен 10 минут</p>
                   </div>

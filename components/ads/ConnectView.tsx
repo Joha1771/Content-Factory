@@ -12,7 +12,7 @@ import {
 } from "@/lib/hooks/useAdsData";
 import { PLATFORM_META } from "./data";
 
-const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot";
+const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || "mvi_ra_bot";
 
 const AD_PLATFORMS = [
   { key: "yandex", region: "cis" },

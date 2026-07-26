@@ -17,7 +17,7 @@ export async function POST() {
     [user.id, token]
   );
 
-  const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot";
+  const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || "mvi_ra_bot";
   return NextResponse.json({
     token,
     instruction: `Напишите боту @${botUsername} команду:\n/link ${token}`,

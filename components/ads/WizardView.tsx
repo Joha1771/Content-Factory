@@ -2221,7 +2221,7 @@ export function WizardView({
                 <p className="text-[11px] text-tx-3 bg-panel-2 border border-line rounded-[8px] p-3 leading-relaxed">
                   Добавь бота{" "}
                   <strong className="text-tx-1">
-                    @{process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot"}
+                    @{process.env.NEXT_PUBLIC_BOT_USERNAME || "mvi_ra_bot"}
                   </strong>{" "}
                   как администратора канала, затем введи username
                 </p>
