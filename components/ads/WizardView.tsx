@@ -13,7 +13,7 @@ import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 const ALL_STEP_DEFS = [
   { key: "goal" as const, label: "Цель" },
   { key: "platforms" as const, label: "Платформы" },
-  { key: "launch" as const, label: "Запуск" },
+  { key: "launch" as const, label: "Сохранить" },
 ];
 
 const WIZARD_NICHE_TREE = [
@@ -512,13 +512,13 @@ export function BulkScheduleModal({
 function LaunchStep({
   name, goal, product, audience, budget,
   selectedPlatforms, realPlatforms,
-  projectAgent,
+  landings, selectedLandingId, onLandingChange,
   launchProgress, launching,
   step, setStep, handleLaunch,
 }: {
   name: string; goal: string; product: string; audience: string; budget: string;
   selectedPlatforms: Set<string>; realPlatforms: any[];
-  projectAgent: any;
+  landings: any[]; selectedLandingId: string | null; onLandingChange: (id: string | null) => void;
   launchProgress: string; launching: boolean;
   step: number; setStep: (s: number) => void; handleLaunch: () => void;
 }) {
@@ -563,7 +563,7 @@ function LaunchStep({
               <h2 className="text-[15px] font-semibold text-tx-1 leading-tight">{name || "Без названия"}</h2>
               <p className="text-[11px] text-tx-3 mt-0.5">{goal}</p>
             </div>
-            <span className="shrink-0 px-2.5 py-1 rounded-full bg-accent/10 text-[10px] font-medium text-accent border border-accent/20">Готово к запуску</span>
+            <span className="shrink-0 px-2.5 py-1 rounded-full bg-chip text-[10px] font-medium text-tx-2 border border-line">Черновик</span>
           </div>
           {product && <p className="text-[11px] text-tx-2 leading-relaxed">{product}</p>}
           {audience && (
@@ -635,13 +635,6 @@ function LaunchStep({
           )}
         </div>
 
-        {/* AI agent */}
-        {projectAgent && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-accent/5 border border-accent/20 rounded-[8px]">
-            <span className="text-sm">🤖</span>
-            <p className="text-[11px] text-tx-2">AI-агент <span className="font-medium text-accent">{projectAgent.name}</span> будет отслеживать кампанию</p>
-          </div>
-        )}
       </div>
 
       {/* Right — approval + launch (40%) */}
@@ -649,7 +642,7 @@ function LaunchStep({
         {/* Согласование */}
         <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
           <h3 className="text-[12px] font-semibold text-tx-1 mb-3">Согласовать с командой</h3>
-          <p className="text-[11px] text-tx-3 mb-3 leading-relaxed">Отправьте ссылку на согласование руководителю или клиенту перед запуском.</p>
+          <p className="text-[11px] text-tx-3 mb-3 leading-relaxed">Отправьте ссылку на согласование руководителю или клиенту перед сохранением.</p>
           <input
             type="email"
             placeholder="email@company.com"
@@ -666,9 +659,25 @@ function LaunchStep({
           <p className="text-[10px] text-tx-3 mt-2 text-center">Функция в разработке</p>
         </div>
 
+        {/* Landing picker */}
+        <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+          <p className="text-[11px] font-medium text-tx-2 mb-2">Лендинг кампании</p>
+          <p className="text-[10px] text-tx-3 mb-2 leading-relaxed">Привяжите лендинг, чтобы mvira считал реальные конверсии из заявок</p>
+          <select
+            value={selectedLandingId ?? ""}
+            onChange={(e) => onLandingChange(e.target.value || null)}
+            className="w-full px-3 py-2 rounded-[7px] border border-line bg-panel text-[11px] text-tx-1 outline-none focus:border-accent/50"
+          >
+            <option value="">— Без лендинга</option>
+            {landings.map((l: any) => (
+              <option key={l.id} value={l.id}>{l.title}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Checklist */}
         <div className="p-4 bg-panel-2 border border-line rounded-[12px] space-y-2">
-          <p className="text-[11px] font-medium text-tx-2 mb-3">Перед запуском</p>
+          <p className="text-[11px] font-medium text-tx-2 mb-3">Перед сохранением</p>
           {[
             { ok: !!name.trim(), label: "Название кампании" },
             { ok: selectedPlatforms.size > 0, label: "Выбраны платформы" },
@@ -692,7 +701,7 @@ function LaunchStep({
             disabled={launching}
             className="w-full py-3 bg-accent text-on-accent text-[13px] font-semibold rounded-[10px] hover:opacity-90 cursor-pointer disabled:opacity-50 transition-opacity"
           >
-            {launching ? "⟳ Запускаю..." : "🚀 Запустить кампанию"}
+            {launching ? "⟳ Сохраняю..." : "💾 Сохранить кампанию"}
           </button>
           <button
             onClick={() => setStep(step - 1)}
@@ -757,11 +766,6 @@ export function WizardView({
       ]),
     ),
   );
-  const [campaignTools, setCampaignTools] = useState<Set<string>>(
-    () => new Set<string>(draft?.campaignTools ?? [])
-  );
-  const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(draft?.selectedAgentId ?? null);
   const [budgetSuggesting, setBudgetSuggesting] = useState(false);
   const [budgetTip, setBudgetTip] = useState("");
   const [budgetRange, setBudgetRange] = useState<{ min: number; max: number } | null>(null);
@@ -772,6 +776,7 @@ export function WizardView({
   const [launching, setLaunching] = useState(false);
   const [launchProgress, setLaunchProgress] = useState<string>("");
   const [error, setError] = useState("");
+  const [wizardLandingId, setWizardLandingId] = useState<string | null>(null);
 
 
   // Connect platform inline
@@ -844,6 +849,14 @@ export function WizardView({
       },
     });
 
+  const { data: userLandings = [] } = useQuery({
+    queryKey: ["landings_wizard"],
+    queryFn: async () => {
+      const res = await fetch("/api/landings");
+      return res.ok ? res.json() : [];
+    },
+  });
+
   // Build real platforms
   type RealPlatform = {
     key: string;
@@ -905,25 +918,6 @@ export function WizardView({
 
   const connectedKeys = new Set(realPlatforms.map((p) => p.key));
 
-  // AI agents
-  const { data: aiAgents = [] } = useQuery({
-    queryKey: ["ai_agents_wizard"],
-    queryFn: async () => {
-      const res = await fetch("/api/ai-agents");
-      if (!res.ok) return [];
-      const data = await res.json();
-      return (data ?? []).filter((a: any) => a.is_active);
-    },
-  });
-
-  // Derived from projects + aiAgents (no extra query needed)
-  const projectAgent = (() => {
-    if (!projectId) return null;
-    const proj = (projects as any[]).find((p: any) => p.id === projectId);
-    if (!proj?.ai_agent_id) return null;
-    return (aiAgents as any[]).find((a: any) => a.id === proj.ai_agent_id) ?? null;
-  })();
-
   // Autosave draft to localStorage + create draft in DB
   useEffect(() => {
     const subtypesSer = Object.fromEntries(
@@ -943,7 +937,6 @@ export function WizardView({
         platforms: [...selectedPlatforms],
         subtypes: subtypesSer,
         draftId,
-        campaignTools: [...campaignTools],
         step,
         maxStep,
         campaignNiche,
@@ -967,7 +960,6 @@ export function WizardView({
     projectId,
     selectedPlatforms,
     selectedSubtypes,
-    campaignTools,
     step,
     maxStep,
   ]);
@@ -1036,11 +1028,6 @@ export function WizardView({
   // Dynamic steps based on selected tools
   const activeSteps = ALL_STEP_DEFS;
   const currentStepKey = activeSteps[step]?.key ?? "goal";
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (step >= activeSteps.length) setStep(0);
-  }, [campaignTools]);
 
   const suggestBudget = async () => {
     setBudgetSuggesting(true);
@@ -1268,9 +1255,10 @@ export function WizardView({
             goal,
             description: product,
             platforms: [...selectedPlatforms],
-            status: "active",
+            status: "draft",
             budget_total: budget ? Number(budget) : null,
             project_id: projectId || null,
+            landing_id: wizardLandingId || null,
           }),
         });
       } else {
@@ -1279,7 +1267,7 @@ export function WizardView({
           goal,
           description: product,
           platforms: [...selectedPlatforms],
-          status: "active",
+          status: "draft",
           budget_total: budget ? Number(budget) : undefined,
           budget_spent: 0,
           impressions: 0,
@@ -1293,6 +1281,13 @@ export function WizardView({
           project_id: projectId || undefined,
         });
         campaignId = campaign.id;
+        if (wizardLandingId) {
+          await fetch(`/api/campaigns/${campaignId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ landing_id: wizardLandingId }),
+          });
+        }
       }
 
       qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
@@ -1881,63 +1876,8 @@ export function WizardView({
             </div>
           </div>
 
-          {/* Right: tools + project images */}
+          {/* Right: project images */}
           <div className="space-y-4">
-            {/* Campaign tools checkboxes */}
-            <div>
-              <label className="block ui-label mb-2">Инструменты кампании</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {[
-                  { key: "ai_agent", label: "AI-агент", icon: "🤖" },
-                  { key: "creatives", label: "Рекламные креативы", icon: "🎨" },
-                ].map((tool) => {
-                  const checked = campaignTools.has(tool.key);
-                  return (
-                    <div key={tool.key}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "8px 10px", borderRadius: 8, border: `0.5px solid ${checked ? "var(--accent)" : "var(--line)"}`, background: checked ? "var(--chip)" : "transparent", transition: "all 0.15s" }}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            const next = new Set(campaignTools);
-                            if (checked) { next.delete(tool.key); if (tool.key === "ai_agent") { setSelectedAgentId(null); } }
-                            else { next.add(tool.key); }
-                            setCampaignTools(next);
-                          }}
-                          style={{ accentColor: "var(--accent)", width: 14, height: 14, flexShrink: 0 }}
-                        />
-                        <span style={{ fontSize: 14 }}>{tool.icon}</span>
-                        <span style={{ fontSize: 12, color: "var(--tx-1)", fontWeight: checked ? 500 : 400 }}>{tool.label}</span>
-                      </label>
-                      {tool.key === "ai_agent" && checked && (
-                        <div style={{ marginTop: 6, marginLeft: 10, padding: 10, background: "var(--panel-2)", borderRadius: 8, border: "0.5px solid var(--line)" }}>
-                          <p style={{ fontSize: 10, color: "var(--tx-3)", marginBottom: 8 }}>Выберите AI-агента:</p>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto" }}>
-                            {(aiAgents as any[]).map((a: any) => (
-                              <button key={a.id} type="button" onClick={() => setSelectedAgentId(selectedAgentId === a.id ? null : a.id)}
-                                style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, border: `0.5px solid ${selectedAgentId === a.id ? "var(--accent)" : "var(--line)"}`, background: selectedAgentId === a.id ? "var(--chip)" : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
-                              >
-                                <span style={{ fontSize: 12 }}>🤖</span>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <p style={{ fontSize: 11, fontWeight: 500, color: "var(--tx-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</p>
-                                  {a.role && <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0 }}>{a.role}</p>}
-                                </div>
-                                {selectedAgentId === a.id && <span style={{ fontSize: 10, color: "var(--accent)", flexShrink: 0 }}>✓</span>}
-                              </button>
-                            ))}
-                            <button type="button" onClick={() => router.push(`/${locale}/ai-workers`)}
-                              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, border: "0.5px dashed var(--line)", background: "transparent", cursor: "pointer", fontFamily: "inherit", color: "var(--accent)", fontSize: 11 }}
-                            >
-                              <span>+</span> Создать собственного AI-агента
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
             <ProjectImagesPanel projectId={projectId} />
           </div>
 
@@ -2006,7 +1946,7 @@ export function WizardView({
               }}
               className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
             >
-              Далее: {activeSteps[step + 1]?.label ?? "Запуск"} →
+              Далее: {activeSteps[step + 1]?.label ?? "Сохранить"} →
             </button>
           </div>
         </div>
@@ -2047,12 +1987,6 @@ export function WizardView({
                   <p className="text-[10px] text-tx-3">{sub}</p>
                 </div>
               </div>
-              {sel && connected && projectAgent && (
-                <div className="px-3 pb-2 pt-1.5 border-t border-line bg-panel-2 flex items-center gap-2">
-                  <span className="text-[10px] text-tx-3">🤖 Агент проекта:</span>
-                  <span className="text-[10px] font-medium text-accent">{projectAgent.name}</span>
-                </div>
-              )}
             </div>
           );
         };
@@ -2115,7 +2049,7 @@ export function WizardView({
                   if (!meta) return null;
                   const isConnected = connectedKeys.has(key);
                   const rp = realPlatforms.find((p) => p.key === key);
-                  const sub = rp?.accountInfo ?? (isConnected ? "Подключён" : "Запустить рекламу");
+                  const sub = rp?.accountInfo ?? (isConnected ? "Подключён" : "Подключить кабинет");
                   return renderPlatformRow(key, meta.name, meta.color, meta.abbr, sub, isConnected, key);
                 })}
               </div>
@@ -2135,7 +2069,7 @@ export function WizardView({
                 }}
                 className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
               >
-                Далее: {activeSteps[step + 1]?.label ?? "Запуск"} →
+                Далее: {activeSteps[step + 1]?.label ?? "Сохранить"} →
               </button>
             </div>
           </div>
@@ -2153,7 +2087,9 @@ export function WizardView({
           budget={budget}
           selectedPlatforms={selectedPlatforms}
           realPlatforms={realPlatforms}
-          projectAgent={projectAgent}
+          landings={userLandings}
+          selectedLandingId={wizardLandingId}
+          onLandingChange={setWizardLandingId}
           launchProgress={launchProgress}
           launching={launching}
           step={step}

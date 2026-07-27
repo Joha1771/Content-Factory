@@ -83,6 +83,15 @@ export default function CampaignDetailPage() {
     },
   });
 
+  const { data: leadsData } = useQuery({
+    queryKey: ["campaign_leads", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const res = await fetch(`/api/campaigns/${id}/leads`);
+      return res.ok ? res.json() : null;
+    },
+  });
+
   useEffect(() => {
     if (campaign?.landing_id && !landingId) {
       setLandingId(campaign.landing_id);
@@ -643,6 +652,11 @@ export default function CampaignDetailPage() {
         </div>
       </div>
 
+      {/* Tracking notice */}
+      <div className="px-5 pb-2 max-w-[960px] mx-auto w-full">
+        <p className="text-[10px] text-tx-3">mvira отслеживает статистику из подключённых кабинетов — реклама создаётся вручную в рекламном кабинете</p>
+      </div>
+
       {/* KPIs */}
       <div className="px-5 pb-4 grid grid-cols-5 gap-3 max-w-[960px] mx-auto w-full">
         {[
@@ -822,6 +836,56 @@ export default function CampaignDetailPage() {
                   <span className="font-medium text-tx-1">{v}</span>
                 </div>
               ))}
+            </div>
+
+            {/* Real leads from landing */}
+            <div className="ui-surface p-4 col-span-2">
+              <p className="ui-label mb-3">Конверсии с лендинга</p>
+              {!leadsData || leadsData.landing_id === null ? (
+                <div className="flex flex-col items-center py-6 text-center">
+                  <p className="text-[12px] font-medium text-tx-1 mb-1">Лендинг не привязан</p>
+                  <p className="text-[11px] text-tx-3 mb-3 max-w-[360px]">
+                    Привяжите лендинг на вкладке «Лендинг» — mvira начнёт считать реальные заявки из БД
+                  </p>
+                  <button
+                    onClick={() => setActiveTab("landing")}
+                    className="px-4 py-1.5 text-[11px] font-medium bg-accent text-on-accent rounded-[7px] hover:opacity-90 cursor-pointer"
+                  >
+                    Привязать лендинг
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="text-[28px] font-bold text-tx-1">{leadsData.total}</div>
+                    <div>
+                      <p className="text-[11px] font-medium text-tx-1">заявок всего</p>
+                      <p className="text-[10px] text-tx-3">из формы на лендинге</p>
+                    </div>
+                  </div>
+                  {leadsData.breakdown.length > 0 ? (
+                    <div>
+                      <p className="text-[10px] text-tx-3 uppercase tracking-wider mb-2">Источники (utm_source)</p>
+                      <div className="space-y-1.5">
+                        {leadsData.breakdown.map((row: { source: string; count: number }) => {
+                          const pct = leadsData.total > 0 ? Math.round((row.count / leadsData.total) * 100) : 0;
+                          return (
+                            <div key={row.source} className="flex items-center gap-2 text-[11px]">
+                              <span className="text-tx-3 w-28 truncate">{row.source}</span>
+                              <div className="flex-1 h-1.5 bg-line rounded-full overflow-hidden">
+                                <div className="h-full bg-accent rounded-full" style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="font-medium text-tx-1 w-6 text-right">{row.count}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-tx-3">UTM-метки не переданы — все заявки отмечены как «прямой»</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

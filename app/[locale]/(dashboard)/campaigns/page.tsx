@@ -950,10 +950,13 @@ function CampaignsPageInner() {
       >
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", minWidth: 0 }}>
           {tab === "campaigns" && (
-            <CampaignsView
-              onCreateCampaign={handleCreateClick}
-              projectId={projectId}
-            />
+            <div>
+              <p className="text-[10px] text-tx-3 mb-3 px-1">mvira отслеживает рекламу из подключённого кабинета, а не создаёт её — запускайте кампании напрямую в рекламном кабинете</p>
+              <CampaignsView
+                onCreateCampaign={handleCreateClick}
+                projectId={projectId}
+              />
+            </div>
           )}
           {tab === "wizard" && (
             <div>
