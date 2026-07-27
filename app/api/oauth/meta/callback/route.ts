@@ -37,5 +37,13 @@ export async function GET(req: NextRequest) {
     [user.id, tokens.access_token, firstAccount?.id ?? null]
   );
 
-  return NextResponse.redirect(`${REDIRECT_BASE}/ru/integrations?tab=ads&success=meta`);
+  let returnTo = "/ru/integrations?tab=ads&success=meta";
+  try {
+    const rawState = req.nextUrl.searchParams.get("state") ?? "";
+    const parsed = JSON.parse(rawState);
+    if (typeof parsed.returnTo === "string" && parsed.returnTo.startsWith("/")) {
+      returnTo = parsed.returnTo;
+    }
+  } catch { /* state is a plain string — keep default */ }
+  return NextResponse.redirect(`${REDIRECT_BASE}${returnTo}`);
 }

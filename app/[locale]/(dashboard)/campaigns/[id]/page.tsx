@@ -36,7 +36,7 @@ const STATUS_LABEL: Record<string, string> = {
   completed: "Завершена",
 };
 
-type TabKey = "info" | "schedule" | "history" | "landing" | "content";
+type TabKey = "info" | "schedule" | "history" | "landing" | "content" | "platforms";
 
 export default function CampaignDetailPage() {
   const params = useParams();
@@ -111,6 +111,14 @@ export default function CampaignDetailPage() {
     queryKey: ["landings_for_campaign"],
     queryFn: async () => {
       const res = await fetch("/api/landings");
+      return res.ok ? res.json() : [];
+    },
+  });
+
+  const { data: adPlatforms = [], refetch: refetchAdPlatforms } = useQuery({
+    queryKey: ["ad_platforms_campaign"],
+    queryFn: async () => {
+      const res = await fetch("/api/ad-platforms");
       return res.ok ? res.json() : [];
     },
   });
@@ -694,11 +702,12 @@ export default function CampaignDetailPage() {
       <div className="flex gap-1 px-5 border-b border-line flex-wrap justify-center">
         {(
           [
-            { k: "info",      l: "Инфо" },
-            { k: "schedule",  l: "Запланировать" },
-            { k: "history",   l: "История" },
-            { k: "landing",   l: "Лендинг" },
-            { k: "content",   l: "Контент ✦" },
+            { k: "info",       l: "Инфо" },
+            { k: "schedule",   l: "Запланировать" },
+            { k: "history",    l: "История" },
+            { k: "landing",    l: "Лендинг" },
+            { k: "content",    l: "Контент ✦" },
+            { k: "platforms",  l: "Платформы" },
           ] as { k: TabKey; l: string }[]
         ).map((t) => (
           <button
@@ -1326,6 +1335,104 @@ export default function CampaignDetailPage() {
                   </div>
                 );
               })()}
+            </div>
+          );
+        })()}
+
+        {/* Platforms tab */}
+        {activeTab === "platforms" && (() => {
+          const AD_PLATFORM_DEFS = [
+            { key: "meta",     name: "Meta Ads",      color: "#1877F2", abbr: "M",  realOAuth: true },
+            { key: "google",   name: "Google Ads",    color: "#34A853", abbr: "G",  realOAuth: true },
+            { key: "yandex",   name: "Яндекс Директ", color: "#FFDB4D", textColor: "#664400", abbr: "Я", realOAuth: true },
+            { key: "vk",       name: "VK Реклама",    color: "#0077FF", abbr: "VK", realOAuth: false },
+            { key: "tiktok",   name: "TikTok Ads",    color: "#010101", abbr: "TT", realOAuth: false },
+            { key: "mytarget", name: "myTarget",      color: "#FF6600", abbr: "MT", realOAuth: false },
+          ];
+
+          const returnTo = `/${locale}/campaigns/${id}?tab=platforms`;
+
+          const connectMeta = () => {
+            const params = new URLSearchParams({
+              client_id: process.env.NEXT_PUBLIC_META_APP_ID ?? "",
+              redirect_uri: process.env.NEXT_PUBLIC_META_REDIRECT_URI ?? "",
+              scope: "ads_read,ads_management,leads_retrieval,business_management",
+              response_type: "code",
+              state: JSON.stringify({ source: "meta_ads", returnTo }),
+            });
+            window.location.href = `https://www.facebook.com/v18.0/dialog/oauth?${params}`;
+          };
+
+          const connectGoogle = () => {
+            const params = new URLSearchParams({
+              client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "",
+              redirect_uri: process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ?? "",
+              scope: "https://www.googleapis.com/auth/adwords",
+              response_type: "code",
+              access_type: "offline",
+              prompt: "consent",
+              state: JSON.stringify({ returnTo }),
+            });
+            window.location.href = `https://accounts.google.com/o/oauth2/auth?${params}`;
+          };
+
+          const connectYandex = () => {
+            const params = new URLSearchParams({
+              response_type: "code",
+              client_id: process.env.NEXT_PUBLIC_YANDEX_CLIENT_ID ?? "",
+              redirect_uri: process.env.NEXT_PUBLIC_YANDEX_REDIRECT_URI ?? "",
+              state: JSON.stringify({ returnTo }),
+            });
+            window.location.href = `https://oauth.yandex.ru/authorize?${params}`;
+          };
+
+          return (
+            <div className="max-w-[600px] mx-auto space-y-3">
+              <p className="text-[11px] text-tx-3 mb-4">
+                Подключите рекламные кабинеты — после подключения вернётесь сюда автоматически.
+              </p>
+              {AD_PLATFORM_DEFS.map((def) => {
+                const connected = (adPlatforms as any[]).find(
+                  (p: any) => p.platform_key === def.key && p.is_active
+                );
+                return (
+                  <div
+                    key={def.key}
+                    className={`flex items-center gap-3 p-4 rounded-[10px] border ${connected ? "border-accent/30 bg-chip/30" : "border-line bg-panel-2"}`}
+                  >
+                    <div
+                      className="w-9 h-9 rounded-[8px] flex items-center justify-center text-[13px] font-bold flex-shrink-0"
+                      style={{ background: def.color, color: (def as any).textColor ?? "#fff" }}
+                    >
+                      {def.abbr}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium text-tx-1">{def.name}</p>
+                      {connected && (
+                        <p className="text-[10px] text-tx-3 mt-0.5">
+                          {connected.account_id ? `Аккаунт: ${connected.account_id}` : "Подключён"}
+                        </p>
+                      )}
+                    </div>
+                    {connected ? (
+                      <span className="text-[10px] px-2.5 py-1 rounded-full bg-chip text-pos font-medium">
+                        Подключён ✓
+                      </span>
+                    ) : def.realOAuth ? (
+                      <button
+                        onClick={def.key === "meta" ? connectMeta : def.key === "google" ? connectGoogle : connectYandex}
+                        className="px-3 py-1.5 bg-accent text-on-accent text-[11px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
+                      >
+                        Подключить
+                      </button>
+                    ) : (
+                      <span className="text-[10px] px-2.5 py-1 rounded-full bg-panel border border-line text-tx-3">
+                        Скоро
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           );
         })()}
