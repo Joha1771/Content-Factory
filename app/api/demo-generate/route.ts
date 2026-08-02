@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { getClientIp, rateLimit } from "@/lib/rate-limit";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -11,6 +12,22 @@ const SYSTEM = `Ты — профессиональный SMM-копирайте
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rlHr = await rateLimit(`demo-hr:${ip}`, 5, 3600);
+    if (!rlHr.ok) {
+      return NextResponse.json(
+        { error: "too_many_requests", retryAfter: rlHr.retryAfter },
+        { status: 429, headers: { "Retry-After": String(rlHr.retryAfter) } }
+      );
+    }
+    const rlDay = await rateLimit(`demo-day:${ip}`, 20, 86400);
+    if (!rlDay.ok) {
+      return NextResponse.json(
+        { error: "too_many_requests", retryAfter: rlDay.retryAfter },
+        { status: 429, headers: { "Retry-After": String(rlDay.retryAfter) } }
+      );
+    }
+
     const { niche, tone, platform } = await req.json();
 
     if (!niche || !platform) {

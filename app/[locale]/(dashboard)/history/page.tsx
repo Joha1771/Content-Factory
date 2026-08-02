@@ -520,8 +520,7 @@ function HistoryPageInner() {
                       const isSelected = selected?.id === c.id;
                       const PlatformIcon =
                         PLATFORM_ICON[c.platform] || FileText;
-                      const score =
-                        c.ai_score || Math.floor(60 + Math.random() * 35);
+                      const score: number | null = c.ai_score ?? null;
 
                       return (
                         <tr
@@ -609,17 +608,19 @@ function HistoryPageInner() {
                           </td>
                           {/* Score */}
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-10 h-1.5 bg-track rounded-full overflow-hidden">
-                                <div
-                                  className="h-full rounded-full bg-accent transition-all"
-                                  style={{ width: `${score}%` }}
-                                />
+                            {score !== null ? (
+                              <div className="flex items-center gap-2">
+                                <div className="w-10 h-1.5 bg-track rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-accent transition-all"
+                                    style={{ width: `${score}%` }}
+                                  />
+                                </div>
+                                <span className="text-[10px] text-tx-3 ui-num">{score}</span>
                               </div>
-                              <span className="text-[10px] text-tx-3 ui-num">
-                                {score}
-                              </span>
-                            </div>
+                            ) : (
+                              <span className="text-[10px] text-tx-3">—</span>
+                            )}
                           </td>
                           {/* Actions */}
                           <td className="px-4 py-3">

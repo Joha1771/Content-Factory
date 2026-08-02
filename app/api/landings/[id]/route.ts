@@ -7,12 +7,23 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const landing = await queryOne(
+  const landing = await queryOne<Record<string, any>>(
     "SELECT * FROM landings WHERE id = $1 AND user_id = $2",
     [id, user.id]
   );
   if (!landing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(landing);
+
+  // Unpack content JSONB into flat fields expected by the editor
+  const content = (typeof landing.content === "object" && landing.content !== null)
+    ? landing.content as Record<string, any>
+    : {};
+  return NextResponse.json({
+    ...landing,
+    blocks: content.blocks ?? [],
+    bg_image: content.bg_image ?? null,
+    settings: content.settings ?? {},
+    template_id: content.template_id ?? "classic",
+  });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {

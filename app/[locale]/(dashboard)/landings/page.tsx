@@ -7,6 +7,7 @@ import {
   Plus, Globe, Edit3, Trash2, Copy, Eye, EyeOff,
   FileText, ExternalLink, MessageSquare, Phone, Mail, Clock,
 } from "lucide-react";
+import LandingDetail from "@/components/landing/LandingDetail";
 
 type LandingPage = {
   id: string;
@@ -14,8 +15,11 @@ type LandingPage = {
   slug: string;
   published: boolean;
   template_id: string | null;
+  logo_url: string | null;
   created_at: string;
   updated_at: string;
+  views: number;
+  leads_count: number;
 };
 
 type Lead = {
@@ -29,12 +33,48 @@ type Lead = {
   message: string | null;
   status: string;
   created_at: string;
+  source?: Record<string, string> | null;
 };
+
+// Feature 4: CSV Export helpers
+function formatSource(source: any): string {
+  if (!source || typeof source !== "object") return "";
+  if (source.utm_source) {
+    return source.utm_medium ? `${source.utm_source}/${source.utm_medium}` : source.utm_source;
+  }
+  if (source.referrer) return source.referrer;
+  return "";
+}
+
+function exportLeadsCSV(leads: Lead[], filename: string) {
+  const BOM = "﻿";
+  const header = ["Имя", "Телефон", "Email", "Лендинг", "Источник", "Дата"].join(",");
+  const rows = leads.map(l => {
+    const cols = [
+      l.name ?? "",
+      l.phone ?? "",
+      l.email ?? "",
+      l.landing_title ?? "",
+      formatSource(l.source),
+      new Date(l.created_at).toLocaleString("ru-RU"),
+    ];
+    return cols.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",");
+  });
+  const csv = BOM + [header, ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function LandingsPage() {
   const qc = useQueryClient();
   const locale = useLocale();
   const router = useRouter();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"landings" | "leads">("landings");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -86,6 +126,7 @@ export default function LandingsPage() {
     onSuccess: () => {
       setDeletingId(null);
       qc.invalidateQueries({ queryKey: ["landing_pages"] });
+      qc.invalidateQueries({ queryKey: ["landings_wizard"] });
     },
   });
 
@@ -103,6 +144,15 @@ export default function LandingsPage() {
     new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
   const publishedCount = landings.filter((l) => l.published).length;
+
+  if (selectedId !== null) {
+    return (
+      <LandingDetail
+        id={selectedId}
+        onBack={() => setSelectedId(null)}
+      />
+    );
+  }
 
   return (
     <div style={{ padding: "32px 32px 64px", maxWidth: 1100, margin: "0 auto" }}>
@@ -193,9 +243,15 @@ export default function LandingsPage() {
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
             {landings.map((landing) => (
-              <div key={landing.id} style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <div key={landing.id} style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", cursor: "pointer" }}
+                onClick={() => setSelectedId(landing.id)}
+              >
                 <div style={{ height: 140, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-                  <FileText size={32} style={{ color: "var(--tx-3)" }} />
+                  {landing.logo_url ? (
+                    <img src={landing.logo_url} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <FileText size={32} style={{ color: "var(--tx-3)" }} />
+                  )}
                   <div style={{ position: "absolute", top: 10, right: 10, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, background: landing.published ? "#dcfce7" : "var(--chip)", color: landing.published ? "#16a34a" : "var(--tx-3)" }}>
                     {landing.published ? "Опубликован" : "Черновик"}
                   </div>
@@ -208,10 +264,18 @@ export default function LandingsPage() {
                   <p style={{ fontSize: 12, color: "var(--tx-3)", margin: "4px 0 0" }}>
                     /l/{landing.slug} · {formatDate(landing.updated_at)}
                   </p>
+                  <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--tx-3)" }}>
+                      <Eye size={12} /> {landing.views}
+                    </span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--tx-3)" }}>
+                      <MessageSquare size={12} /> {landing.leads_count}
+                    </span>
+                  </div>
                 </div>
 
-                <div style={{ display: "flex", gap: 6, padding: "0 12px 12px", borderTop: "1px solid var(--line)", paddingTop: 10 }}>
-                  <button onClick={() => router.push(`/${locale}/landings/${landing.id}/edit`)} title="Редактировать" style={iconBtnStyle}>
+                <div style={{ display: "flex", gap: 6, padding: "0 12px 12px", borderTop: "1px solid var(--line)", paddingTop: 10 }} onClick={(e) => e.stopPropagation()}>
+                  <button onClick={() => setSelectedId(landing.id)} title="Открыть карточку" style={iconBtnStyle}>
                     <Edit3 size={14} />
                   </button>
                   <button onClick={() => togglePublishMutation.mutate({ id: landing.id, published: !landing.published })} title={landing.published ? "Снять с публикации" : "Опубликовать"} style={iconBtnStyle}>
@@ -223,7 +287,7 @@ export default function LandingsPage() {
                   </button>
                   {landing.published && (
                     <a href={`/l/${landing.slug}`} target="_blank" rel="noopener noreferrer" title="Открыть"
-                      style={{ ...iconBtnStyle, textDecoration: "none" }}>
+                      style={{ ...iconBtnStyle, textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>
                       <ExternalLink size={14} />
                     </a>
                   )}
@@ -263,56 +327,73 @@ export default function LandingsPage() {
               </div>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {leads.map((lead) => (
-                <div key={lead.id} style={{ padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, display: "flex", alignItems: "flex-start", gap: 14 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 10, background: "var(--chip)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <span style={{ fontSize: 16 }}>👤</span>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>
-                        {lead.name || "Без имени"}
-                      </p>
-                      {lead.landing_title && (
-                        <span style={{ fontSize: 11, color: "var(--tx-3)", background: "var(--chip)", padding: "2px 8px", borderRadius: 6 }}>
-                          {lead.landing_title}
-                        </span>
-                      )}
-                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: lead.status === "new" ? "#dbeafe" : "var(--chip)", color: lead.status === "new" ? "#1d4ed8" : "var(--tx-3)", fontWeight: 600 }}>
-                        {lead.status === "new" ? "Новая" : lead.status}
-                      </span>
+            <>
+              {/* Feature 4: CSV Export button */}
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                <button
+                  onClick={() => exportLeadsCSV(leads, `leads-${new Date().toISOString().slice(0,10)}.csv`)}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--tx-2)", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
+                >
+                  ⬇ Экспорт CSV
+                </button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {leads.map((lead) => (
+                  <div key={lead.id} style={{ padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, display: "flex", alignItems: "flex-start", gap: 14 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 10, background: "var(--chip)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <span style={{ fontSize: 16 }}>👤</span>
                     </div>
-                    <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                      {lead.phone && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--tx-2)" }}>
-                          <Phone size={12} /> {lead.phone}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>
+                          {lead.name || "Без имени"}
+                        </p>
+                        {lead.landing_title && (
+                          <span style={{ fontSize: 11, color: "var(--tx-3)", background: "var(--chip)", padding: "2px 8px", borderRadius: 6 }}>
+                            {lead.landing_title}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: lead.status === "new" ? "#dbeafe" : "var(--chip)", color: lead.status === "new" ? "#1d4ed8" : "var(--tx-3)", fontWeight: 600 }}>
+                          {lead.status === "new" ? "Новая" : lead.status}
                         </span>
-                      )}
-                      {lead.email && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--tx-2)" }}>
-                          <Mail size={12} /> {lead.email}
+                        {/* Feature 6: Source chip */}
+                        {formatSource(lead.source) && (
+                          <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: "var(--chip)", color: "var(--tx-3)", fontFamily: "monospace" }}>
+                            {formatSource(lead.source)}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                        {lead.phone && (
+                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--tx-2)" }}>
+                            <Phone size={12} /> {lead.phone}
+                          </span>
+                        )}
+                        {lead.email && (
+                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--tx-2)" }}>
+                            <Mail size={12} /> {lead.email}
+                          </span>
+                        )}
+                        {lead.message && (
+                          <span style={{ fontSize: 12, color: "var(--tx-3)", fontStyle: "italic", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            "{lead.message}"
+                          </span>
+                        )}
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--tx-3)" }}>
+                          <Clock size={11} /> {formatTime(lead.created_at)}
                         </span>
-                      )}
-                      {lead.message && (
-                        <span style={{ fontSize: 12, color: "var(--tx-3)", fontStyle: "italic", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          "{lead.message}"
-                        </span>
-                      )}
-                      <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--tx-3)" }}>
-                        <Clock size={11} /> {formatTime(lead.created_at)}
-                      </span>
+                      </div>
                     </div>
+                    {lead.landing_slug && (
+                      <a href={`/l/${lead.landing_slug}`} target="_blank" rel="noreferrer"
+                        style={{ color: "var(--tx-3)", flexShrink: 0 }}>
+                        <ExternalLink size={14} />
+                      </a>
+                    )}
                   </div>
-                  {lead.landing_slug && (
-                    <a href={`/l/${lead.landing_slug}`} target="_blank" rel="noreferrer"
-                      style={{ color: "var(--tx-3)", flexShrink: 0 }}>
-                      <ExternalLink size={14} />
-                    </a>
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}

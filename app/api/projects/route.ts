@@ -21,6 +21,12 @@ export async function POST(request: Request) {
     const { name, niche, description, audience, tone, language, logo_url, country, phone, website, keywords } = await request.json();
     if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
+    const duplicate = await queryOne(
+      "SELECT id FROM projects WHERE user_id = $1 AND lower(name) = lower($2) AND is_active = true",
+      [user.id, name.trim()]
+    );
+    if (duplicate) return NextResponse.json({ error: "Проект с таким названием уже существует" }, { status: 409 });
+
     const project = await queryOne(
       `INSERT INTO projects (user_id, name, niche, description, audience, tone, language, logo_url, country, phone, website, keywords, is_active)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true) RETURNING *`,

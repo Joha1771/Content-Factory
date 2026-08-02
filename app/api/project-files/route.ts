@@ -12,7 +12,14 @@ export async function GET(request: Request) {
   const vals: any[] = [user.id];
   if (projectId) { vals.push(projectId); sql += ` AND project_id = $${vals.length}`; }
   sql += " ORDER BY created_at DESC";
-  return NextResponse.json(await query(sql, vals));
+
+  try {
+    const rows = await query(sql, vals);
+    return NextResponse.json(rows);
+  } catch (err: any) {
+    console.error("[project-files GET]", err?.message);
+    return NextResponse.json({ error: err?.message }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {

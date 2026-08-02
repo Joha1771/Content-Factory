@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     const text: string = message.text || "";
 
     if (text.startsWith("/start")) {
-      await sendMessage(chatId, `👋 Привет! Я бот MVI Content Factory.\n\nЧтобы получать уведомления о публикациях, привяжи свой аккаунт:\n\n1. Зайди в *Профиль* на сайте\n2. Нажми *"Привязать Telegram"*\n3. Получи код и отправь мне: \`/link КОД\``);
+      await sendMessage(chatId, `👋 Привет! Я бот *MVI Content Factory*.\n\nЯ буду отправлять тебе уведомления когда:\n🔔 Клиент оставил заявку на твоём лендинге\n📊 Еженедельный отчёт по лидам\n\nЧтобы подключить уведомления:\n1. Зайди в *Профиль* → вкладка *Telegram*\n2. Нажми *"Привязать Telegram"*\n3. Получи код и отправь мне: \`/link КОД\``);
       return NextResponse.json({ ok: true });
     }
 
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
         [String(chatId), profile.id]
       );
 
-      await sendMessage(chatId, `✅ *Telegram успешно привязан!*\n\nТеперь ты будешь получать уведомления:\n• После публикации поста\n• Еженедельный отчёт каждый понедельник\n• Важные события аккаунта`);
+      await sendMessage(chatId, `✅ *Telegram успешно привязан!*\n\nТеперь ты будешь мгновенно получать уведомления:\n🔔 Новая заявка с лендинга — имя и телефон клиента\n📊 Еженедельный отчёт по лидам\n\nУправляй уведомлениями в настройках каждого лендинга.`);
       return NextResponse.json({ ok: true });
     }
 

@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getCurrentUser } from "@/lib/auth";
 import { queryOne, query } from "@/lib/db";
+import { spendTokens, refundTokens } from "@/lib/ai/tokens";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -10,6 +11,9 @@ const SYSTEM_PROMPT = `Ты — профессиональный SMM-копир�
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
+
+  const gate = await spendTokens(user.id, "post_generate");
+  if (!gate.ok) return new Response(JSON.stringify({ error: "insufficient_tokens", remaining: gate.remaining, required: gate.required }), { status: 402, headers: { "Content-Type": "application/json" } });
 
   const body = await request.json();
   const { projectId, platform, contentType, goal, topic, imageUrl, campaignId } = body;
@@ -98,6 +102,7 @@ ${recentPosts.length ? `ПРИМЕРЫ СТИЛЯ:\n${recentPosts.map((p, i) => 
 
         send("done", { content: { ...generated, id: content?.id } });
       } catch (err: unknown) {
+        await refundTokens(user.id, "post_generate");
         const msg = err instanceof Error ? err.message : "Generation failed";
         controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ error: msg })}\n\n`));
       } finally {

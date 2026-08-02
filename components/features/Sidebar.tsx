@@ -11,26 +11,19 @@ import {
   LayoutDashboard,
   SquarePen,
   Columns3,
-  Megaphone,
   Calendar,
   LineChart,
-  Bot,
-  ListChecks,
-  FlaskConical,
   FolderOpen,
   Plug,
-  Globe,
-  Contact,
-  Users,
-  MessagesSquare,
-  Ticket,
   CreditCard,
-  Gift,
   Settings,
   LogOut,
   ChevronDown,
-  Gauge,
   type LucideIcon,
+  Globe,
+  Megaphone,
+  // MVP-hidden icons (раскомментировать при включении пункта):
+  // Gauge, ListChecks, Gift
 } from "lucide-react";
 
 type NavItem = { key: string; href: string; Icon: LucideIcon };
@@ -39,7 +32,6 @@ const MARKETING: NavItem[] = [
   { key: "projects", href: "/projects", Icon: FolderOpen },
   { key: "campaigns", href: "/campaigns", Icon: Megaphone },
   { key: "create", href: "/create", Icon: SquarePen },
-  { key: "aiWorkers", href: "/ai-workers", Icon: Bot },
   { key: "landings", href: "/landings", Icon: Globe },
 ];
 
@@ -48,25 +40,17 @@ const BUSINESS: NavItem[] = [
   { key: "content", href: "/history", Icon: Columns3 },
   { key: "calendar", href: "/calendar", Icon: Calendar },
   { key: "analytics", href: "/analytics", Icon: LineChart },
-  { key: "summary", href: "/summary", Icon: Gauge },
+  // { key: "summary", href: "/summary", Icon: Gauge }, // MVP: hidden
 ];
 
 const TOOLS: NavItem[] = [
-  { key: "tasks", href: "/tasks", Icon: ListChecks },
-  { key: "abTests", href: "/ab-tests", Icon: FlaskConical },
+  // { key: "tasks", href: "/tasks", Icon: ListChecks }, // MVP: hidden
   { key: "integrations", href: "/integrations", Icon: Plug },
-];
-
-const AGENCY: NavItem[] = [
-  { key: "crm", href: "/crm", Icon: Contact },
-  { key: "team", href: "/team", Icon: Users },
-  { key: "chat", href: "/chat", Icon: MessagesSquare },
-  { key: "tickets", href: "/tickets", Icon: Ticket },
 ];
 
 const ACCOUNT: NavItem[] = [
   { key: "billing", href: "/billing", Icon: CreditCard },
-  { key: "referral", href: "/referral", Icon: Gift },
+  // { key: "referral", href: "/referral", Icon: Gift }, // MVP: hidden
   { key: "settings", href: "/settings", Icon: Settings },
 ];
 
@@ -76,7 +60,6 @@ function NavContent({ onClose }: { onClose?: () => void }) {
   const [isPending, startTransition] = useTransition();
   const [activeHref, setActiveHref] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [agencyOpen, setAgencyOpen] = useState(false);
   const [marketingOpen, setMarketingOpen] = useState(true);
   const t = useTranslations("nav");
   const locale = useLocale();
@@ -269,17 +252,6 @@ function NavContent({ onClose }: { onClose?: () => void }) {
             <NavButton key={item.href} item={item} />
           ))}
         </div>
-
-        {/* Agency - collapsible */}
-        <Collapsible
-          label={t("groupAgency")}
-          open={agencyOpen}
-          onToggle={() => setAgencyOpen((v) => !v)}
-        >
-          {AGENCY.map((item) => (
-            <NavButton key={item.href} item={item} />
-          ))}
-        </Collapsible>
 
         {/* Account */}
         <div>

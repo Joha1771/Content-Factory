@@ -2,13 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { query, queryOne } from "@/lib/db";
 import { sendPasswordResetEmail } from "@/lib/mailer";
+import { getClientIp, rateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rlIp = await rateLimit(`forgot-ip:${ip}`, 5, 3600);
+    if (!rlIp.ok) {
+      return NextResponse.json(
+        { error: "too_many_requests", retryAfter: rlIp.retryAfter },
+        { status: 429, headers: { "Retry-After": String(rlIp.retryAfter) } }
+      );
+    }
+
     const { email, locale = "ru" } = await req.json();
 
     if (!email || typeof email !== "string") {
       return NextResponse.json({ error: "Email обязателен" }, { status: 400 });
+    }
+
+    const rlEmail = await rateLimit(`forgot-email:${email.toLowerCase().trim()}`, 3, 3600);
+    if (!rlEmail.ok) {
+      return NextResponse.json(
+        { error: "too_many_requests", retryAfter: rlEmail.retryAfter },
+        { status: 429, headers: { "Retry-After": String(rlEmail.retryAfter) } }
+      );
     }
 
     const user = await queryOne<{ id: string; email: string }>(

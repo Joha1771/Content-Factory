@@ -7,7 +7,18 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const landings = await query(
-    "SELECT id, title, slug, published, template_id, created_at, updated_at FROM landings WHERE user_id = $1 ORDER BY created_at DESC",
+    `SELECT l.id, l.title, l.slug, l.published,
+       l.content,
+       l.content->>'template_id'        AS template_id,
+       l.content->'settings'->>'logoUrl' AS logo_url,
+       l.created_at, l.updated_at,
+       COALESCE(l.views, 0)::int         AS views,
+       COUNT(ld.id)::int                 AS leads_count
+     FROM landings l
+     LEFT JOIN leads ld ON ld.landing_id = l.id
+     WHERE l.user_id = $1
+     GROUP BY l.id
+     ORDER BY l.created_at DESC`,
     [user.id]
   );
   return NextResponse.json(landings);

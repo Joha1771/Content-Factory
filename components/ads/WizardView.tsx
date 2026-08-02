@@ -3,7 +3,6 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlatformLogo } from "@/components/ui/PlatformLogo";
 import { PLATFORM_META } from "./data";
-import CreateCreativesStep from "./CreateCreativesStep";
 import {
   useCreateAdCampaign,
   useCreateAdCreative,
@@ -11,14 +10,10 @@ import {
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
-
 const ALL_STEP_DEFS = [
   { key: "goal" as const, label: "Цель" },
-  { key: "landing" as const, label: "Лендинг" },
   { key: "platforms" as const, label: "Платформы" },
-  { key: "create" as const, label: "Создать" },
-  { key: "creatives" as const, label: "Креативы" },
-  { key: "launch" as const, label: "Запуск" },
+  { key: "launch" as const, label: "Сохранить" },
 ];
 
 const WIZARD_NICHE_TREE = [
@@ -182,8 +177,11 @@ async function generateCreativeContent(params: {
   audience: string;
   projectName: string;
   niche?: string;
+  tone?: string;
+  keywords?: string;
+  budget?: string;
   variationIndex?: number;
-}): Promise<{ title: string; caption: string; hook?: string }> {
+}): Promise<Record<string, any>> {
   const res = await fetch("/api/ai/generate-creative", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -511,6 +509,212 @@ export function BulkScheduleModal({
   );
 }
 
+function LaunchStep({
+  name, goal, product, audience, budget,
+  selectedPlatforms, realPlatforms,
+  landings, selectedLandingId, onLandingChange,
+  launchProgress, launching,
+  step, setStep, handleLaunch,
+}: {
+  name: string; goal: string; product: string; audience: string; budget: string;
+  selectedPlatforms: Set<string>; realPlatforms: any[];
+  landings: any[]; selectedLandingId: string | null; onLandingChange: (id: string | null) => void;
+  launchProgress: string; launching: boolean;
+  step: number; setStep: (s: number) => void; handleLaunch: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const [explaining, setExplaining] = useState(false);
+
+  const budgetNum = budget ? Number(budget) : null;
+
+  const getExplanation = async () => {
+    setExplaining(true);
+    try {
+      const res = await fetch("/api/ai/explain-campaign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name, goal,
+          platforms: [...selectedPlatforms],
+          budget: budgetNum,
+          audience,
+        }),
+      });
+      const data = await res.json();
+      setExplanation(data.explanation ?? "");
+    } catch {
+      setExplanation("Не удалось получить объяснение. Попробуйте ещё раз.");
+    } finally {
+      setExplaining(false);
+    }
+  };
+
+  const inp = "w-full px-3 py-2 rounded-[7px] border border-line bg-panel-2 text-[12px] text-tx-1 outline-none focus:border-accent/50";
+
+  return (
+    <div className="flex gap-5 p-5">
+      {/* Left — campaign summary (60%) */}
+      <div className="flex-[3] min-w-0 space-y-4">
+        {/* Name + goal */}
+        <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <h2 className="text-[15px] font-semibold text-tx-1 leading-tight">{name || "Без названия"}</h2>
+              <p className="text-[11px] text-tx-3 mt-0.5">{goal}</p>
+            </div>
+            <span className="shrink-0 px-2.5 py-1 rounded-full bg-chip text-[10px] font-medium text-tx-2 border border-line">Черновик</span>
+          </div>
+          {product && <p className="text-[11px] text-tx-2 leading-relaxed">{product}</p>}
+          {audience && (
+            <div className="mt-2 flex items-center gap-1.5 text-[10px] text-tx-3">
+              <span>👥</span>
+              <span>{audience}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Budget */}
+        {budgetNum && (
+          <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-medium text-tx-2">Бюджет кампании</span>
+              <span className="text-[13px] font-semibold text-tx-1">{budgetNum.toLocaleString("ru")} ₽</span>
+            </div>
+            <div className="w-full h-1.5 bg-line rounded-full overflow-hidden">
+              <div className="h-full bg-accent rounded-full" style={{ width: "0%" }} />
+            </div>
+            <p className="text-[10px] text-tx-3 mt-1.5">Израсходовано 0 ₽ · Осталось {budgetNum.toLocaleString("ru")} ₽</p>
+          </div>
+        )}
+
+        {/* Platforms */}
+        {selectedPlatforms.size > 0 && (
+          <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+            <p className="text-[11px] font-medium text-tx-2 mb-2.5">Платформы</p>
+            <div className="flex flex-wrap gap-2">
+              {[...selectedPlatforms].map((key) => {
+                const rp = realPlatforms.find((p: any) => p.key === key);
+                const meta = (PLATFORM_META as any)[key];
+                const color = rp?.color ?? meta?.color ?? "#6366f1";
+                const abbr = rp?.abbr ?? meta?.abbr ?? key.slice(0, 2).toUpperCase();
+                const pname = rp?.name ?? meta?.name ?? key;
+                return (
+                  <div key={key} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] border border-line bg-panel text-[11px] text-tx-1">
+                    <span className="w-5 h-5 rounded-[5px] flex items-center justify-center text-[9px] font-bold text-white" style={{ background: color }}>{abbr}</span>
+                    {pname}
+                    {rp && <span className="text-[9px] text-tx-3">· подключён</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+
+        {/* AI explanation */}
+        <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+          {explanation ? (
+            <div>
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-[10px] font-semibold text-accent uppercase tracking-wider">✦ AI-анализ</span>
+              </div>
+              <p className="text-[12px] text-tx-1 leading-relaxed">{explanation}</p>
+              <button onClick={getExplanation} disabled={explaining} className="mt-2 text-[10px] text-tx-3 hover:text-accent cursor-pointer underline underline-offset-2">
+                Обновить
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={getExplanation}
+              disabled={explaining}
+              className="w-full py-2.5 border border-dashed border-accent/40 rounded-[8px] text-[12px] text-accent hover:bg-accent/5 cursor-pointer disabled:opacity-50 transition-colors"
+            >
+              {explaining ? "⟳ Анализирую кампанию..." : "✦ Объяснить кампанию"}
+            </button>
+          )}
+        </div>
+
+      </div>
+
+      {/* Right — approval + launch (40%) */}
+      <div className="flex-[2] min-w-0 space-y-4">
+        {/* Согласование */}
+        <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+          <h3 className="text-[12px] font-semibold text-tx-1 mb-3">Согласовать с командой</h3>
+          <p className="text-[11px] text-tx-3 mb-3 leading-relaxed">Отправьте ссылку на согласование руководителю или клиенту перед сохранением.</p>
+          <input
+            type="email"
+            placeholder="email@company.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={inp + " mb-2"}
+          />
+          <button
+            onClick={() => alert("Функция в разработке — вскоре вы сможете отправлять кампании на согласование.")}
+            className="w-full py-2 border border-line rounded-[7px] text-[11px] text-tx-2 hover:bg-hover cursor-pointer"
+          >
+            Отправить на согласование
+          </button>
+          <p className="text-[10px] text-tx-3 mt-2 text-center">Функция в разработке</p>
+        </div>
+
+        {/* Landing picker */}
+        <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+          <p className="text-[11px] font-medium text-tx-2 mb-2">Лендинг кампании</p>
+          <p className="text-[10px] text-tx-3 mb-2 leading-relaxed">Привяжите лендинг, чтобы mvira считал реальные конверсии из заявок</p>
+          <select
+            value={selectedLandingId ?? ""}
+            onChange={(e) => onLandingChange(e.target.value || null)}
+            className="w-full px-3 py-2 rounded-[7px] border border-line bg-panel text-[11px] text-tx-1 outline-none focus:border-accent/50"
+          >
+            <option value="">— Без лендинга</option>
+            {landings.map((l: any) => (
+              <option key={l.id} value={l.id}>{l.title}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Checklist */}
+        <div className="p-4 bg-panel-2 border border-line rounded-[12px] space-y-2">
+          <p className="text-[11px] font-medium text-tx-2 mb-3">Перед сохранением</p>
+          {[
+            { ok: !!name.trim(), label: "Название кампании" },
+            { ok: selectedPlatforms.size > 0, label: "Выбраны платформы" },
+            { ok: !!budget, label: "Указан бюджет" },
+            { ok: !!audience.trim(), label: "Описана аудитория" },
+          ].map(({ ok, label }) => (
+            <div key={label} className="flex items-center gap-2 text-[11px]">
+              <span className={ok ? "text-green-500" : "text-tx-3"}>{ok ? "✓" : "○"}</span>
+              <span className={ok ? "text-tx-1" : "text-tx-3"}>{label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Launch */}
+        <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+          {launchProgress && (
+            <p className="text-[11px] text-accent mb-3 text-center">{launchProgress}</p>
+          )}
+          <button
+            onClick={handleLaunch}
+            disabled={launching}
+            className="w-full py-3 bg-accent text-on-accent text-[13px] font-semibold rounded-[10px] hover:opacity-90 cursor-pointer disabled:opacity-50 transition-opacity"
+          >
+            {launching ? "⟳ Сохраняю..." : "💾 Сохранить кампанию"}
+          </button>
+          <button
+            onClick={() => setStep(step - 1)}
+            className="w-full mt-2 py-2 text-[11px] text-tx-3 hover:text-tx-2 cursor-pointer"
+          >
+            ← Вернуться назад
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function WizardView({
   onClose,
   projectId: defaultProjectId,
@@ -530,7 +734,6 @@ export function WizardView({
 
   const draft = loadDraft(tabId);
 
-  const [showBulkSchedule, setShowBulkSchedule] = useState(false);
   // genMode kept for backward compat but not shown in UI
   const [genMode] = useState<"text" | "image" | "video">("text");
   const [step, setStep] = useState(draft?.step ?? 0);
@@ -563,10 +766,6 @@ export function WizardView({
       ]),
     ),
   );
-  const [landingId, setLandingId] = useState<string | null>(draft?.landingId ?? null);
-  const [campaignTools, setCampaignTools] = useState<Set<string>>(new Set(draft?.campaignTools ?? []));
-  const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(draft?.selectedAgentId ?? null);
   const [budgetSuggesting, setBudgetSuggesting] = useState(false);
   const [budgetTip, setBudgetTip] = useState("");
   const [budgetRange, setBudgetRange] = useState<{ min: number; max: number } | null>(null);
@@ -577,21 +776,8 @@ export function WizardView({
   const [launching, setLaunching] = useState(false);
   const [launchProgress, setLaunchProgress] = useState<string>("");
   const [error, setError] = useState("");
+  const [wizardLandingId, setWizardLandingId] = useState<string | null>(null);
 
-  // Schedule
-  const [scheduleModal, setScheduleModal] = useState<{
-    creativeId: string;
-    platform: string;
-    title: string;
-  } | null>(null);
-  const [scheduleTime, setScheduleTime] = useState("");
-  const [scheduling, setScheduling] = useState(false);
-  const [publishingNow, setPublishingNow] = useState<string | null>(null);
-
-  // Generated creatives (real content from AI)
-  const [generatedCreatives, setGeneratedCreatives] = useState<any[]>([]);
-  const [generating, setGenerating] = useState(false);
-  const [creativePlatformFilter, setCreativePlatformFilter] = useState("all");
 
   // Connect platform inline
   const [connectModal, setConnectModal] = useState<string | null>(null);
@@ -619,6 +805,8 @@ export function WizardView({
   const [productImagePreview, setProductImagePreview] = useState<string | null>(
     null,
   );
+
+
   const imgRef = useRef<HTMLInputElement>(null);
   const productImgRef = useRef<HTMLInputElement>(null);
 
@@ -660,6 +848,14 @@ export function WizardView({
         return (data ?? []).filter((i: any) => i.is_active);
       },
     });
+
+  const { data: userLandings = [] } = useQuery({
+    queryKey: ["landings_wizard"],
+    queryFn: async () => {
+      const res = await fetch("/api/landings");
+      return res.ok ? res.json() : [];
+    },
+  });
 
   // Build real platforms
   type RealPlatform = {
@@ -722,35 +918,6 @@ export function WizardView({
 
   const connectedKeys = new Set(realPlatforms.map((p) => p.key));
 
-  // AI agents
-  const { data: aiAgents = [] } = useQuery({
-    queryKey: ["ai_agents_wizard"],
-    queryFn: async () => {
-      const res = await fetch("/api/ai-agents");
-      if (!res.ok) return [];
-      const data = await res.json();
-      return (data ?? []).filter((a: any) => a.is_active);
-    },
-  });
-
-  // Derived from projects + aiAgents (no extra query needed)
-  const projectAgent = (() => {
-    if (!projectId) return null;
-    const proj = (projects as any[]).find((p: any) => p.id === projectId);
-    if (!proj?.ai_agent_id) return null;
-    return (aiAgents as any[]).find((a: any) => a.id === proj.ai_agent_id) ?? null;
-  })();
-
-  const { data: landingPages = [] } = useQuery({
-    queryKey: ["landings_wizard"],
-    queryFn: async () => {
-      const res = await fetch("/api/landings");
-      if (!res.ok) return [];
-      const data = await res.json();
-      return (data ?? []).filter((l: any) => l.published);
-    },
-  });
-
   // Autosave draft to localStorage + create draft in DB
   useEffect(() => {
     const subtypesSer = Object.fromEntries(
@@ -770,7 +937,6 @@ export function WizardView({
         platforms: [...selectedPlatforms],
         subtypes: subtypesSer,
         draftId,
-        landingId,
         step,
         maxStep,
         campaignNiche,
@@ -794,7 +960,6 @@ export function WizardView({
     projectId,
     selectedPlatforms,
     selectedSubtypes,
-    landingId,
     step,
     maxStep,
   ]);
@@ -846,13 +1011,12 @@ export function WizardView({
           platforms: [...selectedPlatforms],
           budget_total: budget ? Number(budget) : null,
           project_id: projectId || null,
-          landing_id: landingId ?? null,
         }),
       });
       qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
     }, 800);
     return () => clearTimeout(timer);
-  }, [name, goal, product, budget, projectId, selectedPlatforms, draftId, landingId]);
+  }, [name, goal, product, budget, projectId, selectedPlatforms, draftId]);
 
   const activeProject = projects.find((p: any) => p.id === projectId) as any;
 
@@ -862,17 +1026,8 @@ export function WizardView({
   const [autofilling, setAutofilling] = useState(false);
 
   // Dynamic steps based on selected tools
-  const activeSteps = ALL_STEP_DEFS.filter(s => {
-    if (s.key === "goal" || s.key === "platforms" || s.key === "launch") return true;
-    if (s.key === "landing") return campaignTools.has("landing");
-    return campaignTools.has("creatives") || campaignTools.has("content");
-  });
+  const activeSteps = ALL_STEP_DEFS;
   const currentStepKey = activeSteps[step]?.key ?? "goal";
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (step >= activeSteps.length) setStep(0);
-  }, [campaignTools]);
 
   const suggestBudget = async () => {
     setBudgetSuggesting(true);
@@ -915,10 +1070,10 @@ export function WizardView({
       });
       if (!res.ok) return;
       const data = await res.json();
-      if (data.name && !name.trim()) handleNameChange(data.name);
+      if (data.name) handleNameChange(data.name);
       if (data.goal) setGoal(data.goal);
-      if (data.product && !product.trim()) setProduct(data.product);
-      if (data.audience && !audience.trim()) setAudience(data.audience);
+      if (data.product) setProduct(data.product);
+      if (data.audience) setAudience(data.audience);
     } catch {
       // silent fail — user can fill manually
     } finally {
@@ -1075,54 +1230,6 @@ export function WizardView({
     });
   };
 
-  const generateAllCreatives = async () => {
-    setGenerating(true);
-    const days = dateFrom && dateTo
-      ? Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000))
-      : 0;
-    const perType = days > 0 ? (days < 7 ? 1 : days < 30 ? 2 : 3) : 2;
-    const creatives: any[] = [];
-    let globalVariationIndex = 0;
-    for (const platformKey of selectedPlatforms) {
-      const rp = realPlatforms.find((p) => p.key === platformKey);
-      const subs = selectedSubtypes[platformKey] ?? new Set();
-      for (const subtype of subs) {
-        for (let i = 0; i < perType; i++) {
-          try {
-            const content = await generateCreativeContent({
-              platform: platformKey,
-              subtype,
-              product: product || (activeProject as any)?.description || "",
-              goal,
-              audience,
-              projectName: (activeProject as any)?.name ?? name,
-              niche: (activeProject as any)?.niche ?? "",
-              variationIndex: globalVariationIndex,
-            });
-            creatives.push({
-              id: `${platformKey}__${subtype}__${Date.now()}__${i}`,
-              platform: platformKey,
-              subtype,
-              ...content,
-              rp,
-            });
-          } catch {}
-          globalVariationIndex++;
-        }
-      }
-    }
-    setGeneratedCreatives(creatives);
-    setGenerating(false);
-  };
-
-  const handleGoToCreatives = () => {
-    const pos = activeSteps.findIndex(s => s.key === "creatives");
-    const target = pos !== -1 ? pos : activeSteps.length - 1;
-    setStep(target);
-    setMaxStep((prev: number) => Math.max(prev, target));
-    generateAllCreatives();
-  };
-
   // Generate ALL creatives via Claude API then save to DB
   const handleLaunch = async () => {
     if (!name.trim()) {
@@ -1148,10 +1255,10 @@ export function WizardView({
             goal,
             description: product,
             platforms: [...selectedPlatforms],
-            status: "active",
+            status: "draft",
             budget_total: budget ? Number(budget) : null,
             project_id: projectId || null,
-            landing_id: landingId ?? null,
+            landing_id: wizardLandingId || null,
           }),
         });
       } else {
@@ -1160,7 +1267,7 @@ export function WizardView({
           goal,
           description: product,
           platforms: [...selectedPlatforms],
-          status: "active",
+          status: "draft",
           budget_total: budget ? Number(budget) : undefined,
           budget_spent: 0,
           impressions: 0,
@@ -1172,47 +1279,20 @@ export function WizardView({
           cpl: 0,
           roas: 0,
           project_id: projectId || undefined,
-          landing_id: landingId ?? undefined,
         });
         campaignId = campaign.id;
-      }
-
-      qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
-
-      // Save already generated creatives to DB (don't regenerate)
-      const allCreatives: any[] = [];
-      setLaunchProgress(`Сохраняю ${generatedCreatives.length} креативов...`);
-      for (const c of generatedCreatives) {
-        try {
-          const res = await fetch("/api/ad-creatives", {
-            method: "POST",
+        if (wizardLandingId) {
+          await fetch(`/api/campaigns/${campaignId}`, {
+            method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              campaign_id: campaignId,
-              project_id: projectId || null,
-              platform: c.platform,
-              format: c.subtype,
-              title: c.title,
-              caption: c.caption,
-              status: "draft",
-              ai_generated: true,
-              ctr: 0,
-              impressions: 0,
-              clicks: 0,
-              is_winner: false,
-            }),
+            body: JSON.stringify({ landing_id: wizardLandingId }),
           });
-          if (res.ok) allCreatives.push(await res.json());
-        } catch (e) {
-          console.error("Save creative error:", e);
         }
       }
 
-      qc.invalidateQueries({ queryKey: ["ad_creatives"] });
-      setGeneratedCreatives(allCreatives);
+      qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
       clearDraft(tabId);
       setDraftId(null);
-      setLaunchProgress("");
 
       // Go to campaign page
       router.push(`/${locale}/campaigns/${campaignId}`);
@@ -1221,36 +1301,6 @@ export function WizardView({
     } finally {
       setLaunching(false);
       setLaunchProgress("");
-    }
-  };
-
-  const handleScheduleCreative = async () => {
-    if (!scheduleModal || !scheduleTime) return;
-    setScheduling(true);
-    try {
-      await fetch("/api/scheduled-posts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content_id: scheduleModal.creativeId,
-          platform: scheduleModal.platform,
-          scheduled_at: new Date(scheduleTime).toISOString(),
-          status: "pending",
-          retry_count: 0,
-        }),
-      });
-      await fetch(`/api/ad-creatives/${scheduleModal.creativeId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "active" }),
-      });
-      setScheduleModal(null);
-      setScheduleTime("");
-      alert("Запланировано!");
-    } catch (e: any) {
-      alert("Ошибка: " + e.message);
-    } finally {
-      setScheduling(false);
     }
   };
 
@@ -1826,65 +1876,8 @@ export function WizardView({
             </div>
           </div>
 
-          {/* Right: tools + project images */}
+          {/* Right: project images */}
           <div className="space-y-4">
-            {/* Campaign tools checkboxes */}
-            <div>
-              <label className="block ui-label mb-2">Инструменты кампании</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {[
-                  { key: "landing", label: "Лендинг", icon: "🌐" },
-                  { key: "ai_agent", label: "AI-агент", icon: "🤖" },
-                  { key: "creatives", label: "Рекламные креативы", icon: "🎨" },
-                  { key: "content", label: "Контент для соцсетей", icon: "📝" },
-                ].map((tool) => {
-                  const checked = campaignTools.has(tool.key);
-                  return (
-                    <div key={tool.key}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "8px 10px", borderRadius: 8, border: `0.5px solid ${checked ? "var(--accent)" : "var(--line)"}`, background: checked ? "var(--chip)" : "transparent", transition: "all 0.15s" }}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            const next = new Set(campaignTools);
-                            if (checked) { next.delete(tool.key); if (tool.key === "ai_agent") { setSelectedAgentId(null); } }
-                            else { next.add(tool.key); }
-                            setCampaignTools(next);
-                          }}
-                          style={{ accentColor: "var(--accent)", width: 14, height: 14, flexShrink: 0 }}
-                        />
-                        <span style={{ fontSize: 14 }}>{tool.icon}</span>
-                        <span style={{ fontSize: 12, color: "var(--tx-1)", fontWeight: checked ? 500 : 400 }}>{tool.label}</span>
-                      </label>
-                      {tool.key === "ai_agent" && checked && (
-                        <div style={{ marginTop: 6, marginLeft: 10, padding: 10, background: "var(--panel-2)", borderRadius: 8, border: "0.5px solid var(--line)" }}>
-                          <p style={{ fontSize: 10, color: "var(--tx-3)", marginBottom: 8 }}>Выберите AI-агента:</p>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto" }}>
-                            {(aiAgents as any[]).map((a: any) => (
-                              <button key={a.id} type="button" onClick={() => setSelectedAgentId(selectedAgentId === a.id ? null : a.id)}
-                                style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, border: `0.5px solid ${selectedAgentId === a.id ? "var(--accent)" : "var(--line)"}`, background: selectedAgentId === a.id ? "var(--chip)" : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
-                              >
-                                <span style={{ fontSize: 12 }}>🤖</span>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <p style={{ fontSize: 11, fontWeight: 500, color: "var(--tx-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</p>
-                                  {a.role && <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0 }}>{a.role}</p>}
-                                </div>
-                                {selectedAgentId === a.id && <span style={{ fontSize: 10, color: "var(--accent)", flexShrink: 0 }}>✓</span>}
-                              </button>
-                            ))}
-                            <button type="button" onClick={() => router.push(`/${locale}/ai-workers`)}
-                              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, border: "0.5px dashed var(--line)", background: "transparent", cursor: "pointer", fontFamily: "inherit", color: "var(--accent)", fontSize: 11 }}
-                            >
-                              <span>+</span> Создать собственного AI-агента
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
             <ProjectImagesPanel projectId={projectId} />
           </div>
 
@@ -1953,7 +1946,7 @@ export function WizardView({
               }}
               className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
             >
-              Далее: {activeSteps[step + 1]?.label ?? "Запуск"} →
+              Далее: {activeSteps[step + 1]?.label ?? "Сохранить"} →
             </button>
           </div>
         </div>
@@ -1994,12 +1987,6 @@ export function WizardView({
                   <p className="text-[10px] text-tx-3">{sub}</p>
                 </div>
               </div>
-              {sel && connected && projectAgent && (
-                <div className="px-3 pb-2 pt-1.5 border-t border-line bg-panel-2 flex items-center gap-2">
-                  <span className="text-[10px] text-tx-3">🤖 Агент проекта:</span>
-                  <span className="text-[10px] font-medium text-accent">{projectAgent.name}</span>
-                </div>
-              )}
             </div>
           );
         };
@@ -2062,7 +2049,7 @@ export function WizardView({
                   if (!meta) return null;
                   const isConnected = connectedKeys.has(key);
                   const rp = realPlatforms.find((p) => p.key === key);
-                  const sub = rp?.accountInfo ?? (isConnected ? "Подключён" : "Запустить рекламу");
+                  const sub = rp?.accountInfo ?? (isConnected ? "Подключён" : "Подключить кабинет");
                   return renderPlatformRow(key, meta.name, meta.color, meta.abbr, sub, isConnected, key);
                 })}
               </div>
@@ -2082,478 +2069,33 @@ export function WizardView({
                 }}
                 className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
               >
-                Далее: {activeSteps[step + 1]?.label ?? "Запуск"} →
+                Далее: {activeSteps[step + 1]?.label ?? "Сохранить"} →
               </button>
             </div>
           </div>
         );
       })()}
 
-      {/* ══ STEP 3: Создать ══ */}
-      {currentStepKey === "create" && (
-        <CreateCreativesStep
-          projectId={projectId}
-          campaignId={draftId ?? ""}
-          selectedPlatforms={[...selectedPlatforms]}
-          onBack={() => setStep(step - 1)}
-          onNext={handleGoToCreatives}
-        />
-      )}
-
-      {/* ══ STEP 1: Лендинг ══ */}
-      {currentStepKey === "landing" && (
-        <div className="space-y-5">
-          <div>
-            <p className="text-[13px] font-semibold text-tx-1 mb-1">Посадочная страница</p>
-            <p className="text-[11px] text-tx-3 mb-4">Выберите лендинг, на который будет вести реклама (необязательно)</p>
-
-            {(landingPages as any[]).length === 0 ? (
-              <div
-                className="flex flex-col items-center py-14 border border-dashed border-line rounded-[12px]"
-                style={{ background: "var(--panel-2)" }}
-              >
-                <div style={{ fontSize: 36, marginBottom: 10 }}>🌐</div>
-                <p className="text-[13px] font-semibold text-tx-1 mb-1">Нет опубликованных лендингов</p>
-                <p className="text-[11px] text-tx-3 mb-4">Создайте лендинг и он появится здесь</p>
-                <button
-                  onClick={() => {
-                    const params = new URLSearchParams({ from: "campaign", goal, ...(product && { product }), ...(audience && { audience }), ...(name && { campaign_name: name }) });
-                    router.push(`/${locale}/landings/create?${params}`);
-                  }}
-                  className="px-4 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] cursor-pointer hover:opacity-90"
-                >
-                  + Создать лендинг
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setLandingId(null)}
-                  className={`flex flex-col items-center p-4 border rounded-[10px] cursor-pointer transition-colors text-center ${landingId === null ? "border-accent bg-chip" : "border-line hover:border-line-strong hover:bg-hover"}`}
-                >
-                  <div style={{ fontSize: 22, marginBottom: 6 }}>🚫</div>
-                  <p className="text-[12px] font-semibold text-tx-1">Без лендинга</p>
-                  <p className="text-[10px] text-tx-3 mt-1">Трафик без посадочной страницы</p>
-                  {landingId === null && (
-                    <span
-                      className="mt-2 text-[9px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{ background: "var(--accent)", color: "var(--on-accent)" }}
-                    >
-                      ✓ Выбрано
-                    </span>
-                  )}
-                </button>
-                {(landingPages as any[]).map((lp: any) => (
-                  <button
-                    key={lp.id}
-                    onClick={() => setLandingId(lp.id)}
-                    className={`flex flex-col items-start p-4 border rounded-[10px] cursor-pointer transition-colors text-left ${landingId === lp.id ? "border-accent bg-chip" : "border-line hover:border-line-strong hover:bg-hover"}`}
-                  >
-                    <div style={{ fontSize: 20, marginBottom: 6 }}>🌐</div>
-                    <p className="text-[12px] font-semibold text-tx-1 leading-tight mb-1">{lp.name}</p>
-                    <p className="text-[10px] text-tx-3">/{lp.slug}</p>
-                    {landingId === lp.id && (
-                      <span
-                        className="mt-2 text-[9px] font-semibold px-2 py-0.5 rounded-full"
-                        style={{ background: "var(--accent)", color: "var(--on-accent)" }}
-                      >
-                        ✓ Выбран
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-between pt-2 border-t border-line">
-            <button
-              onClick={() => setStep(step - 1)}
-              className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
-            >
-              ← Назад
-            </button>
-            <button
-              onClick={() => {
-                const next = Math.min(step + 1, activeSteps.length - 1);
-                setStep(next);
-                setMaxStep((prev: number) => Math.max(prev, next));
-              }}
-              className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
-            >
-              Далее: {activeSteps[step + 1]?.label ?? "Запуск"} →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ══ STEP 4: Creatives ══ */}
-      {currentStepKey === "creatives" && (
-        <div style={{ position: "relative" }}>
-          {/* Auto-gen loading overlay */}
-          {generating && generatedCreatives.length === 0 && (
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                zIndex: 10,
-                background: "var(--panel)",
-                borderRadius: 12,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 16,
-                minHeight: 200,
-              }}
-            >
-              <div className="w-8 h-8 border-[3px] border-accent border-t-transparent rounded-full animate-spin" />
-              <div style={{ textAlign: "center" }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)" }}>
-                  ✦ AI генерирует креативы
-                </p>
-                <p style={{ fontSize: 11, color: "var(--tx-3)", marginTop: 4 }}>
-                  Создаю тексты для каждой платформы...
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3 p-3 bg-chip/30 rounded-[9px] flex-1 mr-3">
-              <span className="text-[16px]">✦</span>
-              <div>
-                <p className="text-[11px] font-medium text-tx-1">
-                  AI генерирует реальные тексты для каждого типа
-                </p>
-                <p className="text-[10px] text-tx-3">
-                  Удалите что не нравится — остальное попадёт в кампанию
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={generateAllCreatives}
-              disabled={generating}
-              className="px-4 py-2.5 bg-accent text-on-accent text-[11px] font-medium rounded-[8px] hover:opacity-90 cursor-pointer disabled:opacity-60 flex items-center gap-2 flex-shrink-0"
-            >
-              {generating ? (
-                <>
-                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Генерирую...
-                </>
-              ) : (
-                <>✦ {generatedCreatives.length > 0 ? "Перегенерировать" : "Сгенерировать"}</>
-              )}
-            </button>
-          </div>
-
-          {/* Platform filter */}
-          {generatedCreatives.length > 0 && (
-            <div className="flex gap-2 mb-4 flex-wrap">
-              <button
-                onClick={() => setCreativePlatformFilter("all")}
-                className={`px-3 py-1.5 rounded-full text-[11px] border cursor-pointer transition-colors ${creativePlatformFilter === "all" ? "bg-accent text-on-accent border-accent" : "border-line text-tx-3 hover:bg-hover"}`}
-              >
-                Все · {generatedCreatives.length}
-              </button>
-              {[...selectedPlatforms].map((key) => {
-                const rp = realPlatforms.find((p) => p.key === key);
-                const count = generatedCreatives.filter(
-                  (c) => c.platform === key,
-                ).length;
-                if (count === 0) return null;
-                return (
-                  <button
-                    key={key}
-                    onClick={() => setCreativePlatformFilter(key)}
-                    style={
-                      creativePlatformFilter === key
-                        ? {
-                            background: rp?.color,
-                            color: rp?.textColor ?? "#fff",
-                            borderColor: rp?.color,
-                          }
-                        : {}
-                    }
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] border cursor-pointer transition-colors ${creativePlatformFilter !== key ? "border-line text-tx-3 hover:bg-hover" : ""}`}
-                  >
-                    <div
-                      style={{
-                        width: 14,
-                        height: 10,
-                        borderRadius: 2,
-                        background:
-                          creativePlatformFilter === key
-                            ? "rgba(255,255,255,0.3)"
-                            : (rp?.color ?? "#888"),
-                        color: "#fff",
-                        fontSize: 7,
-                        fontWeight: 700,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {rp?.abbr ?? "?"}
-                    </div>
-                    {rp?.name.split(" ")[0] ?? key} · {count}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!generating && generatedCreatives.length === 0 && (
-            <div className="ui-surface flex flex-col items-center py-16 text-center">
-              <span className="text-[40px] mb-3">✦</span>
-              <p className="text-[13px] font-medium text-tx-1 mb-2">
-                Нажмите «Сгенерировать»
-              </p>
-              <p className="text-[11px] text-tx-3 max-w-[280px] leading-relaxed">
-                AI создаст реальные тексты постов для каждого типа и платформы
-              </p>
-            </div>
-          )}
-
-          {/* Loading */}
-          {generating && (
-            <div className="ui-surface flex flex-col items-center py-16 text-center">
-              <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mb-4" />
-              <p className="text-[13px] font-medium text-tx-1 mb-2">
-                AI создаёт креативы...
-              </p>
-              <p className="text-[11px] text-tx-3">
-                Генерирую тексты для {[...selectedPlatforms].length} платформ
-              </p>
-            </div>
-          )}
-
-          {/* Grid - horizontal 4 columns */}
-          {!generating && generatedCreatives.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              {generatedCreatives
-                .filter(
-                  (c) =>
-                    creativePlatformFilter === "all" ||
-                    c.platform === creativePlatformFilter,
-                )
-                .map((c, idx) => {
-                  const rp = realPlatforms.find((p) => p.key === c.platform);
-                  const meta = PLATFORM_META[c.platform];
-                  const color = rp?.color ?? meta?.color ?? "#333";
-                  const abbr = rp?.abbr ?? meta?.abbr ?? "?";
-                  const emojiMap: Record<string, string> = {
-                    post: "📝",
-                    video: "🎬",
-                    ad: "📣",
-                    reels: "🎬",
-                    stories: "⭕",
-                    feed: "📱",
-                    search: "🔍",
-                    rsya: "📊",
-                    display: "🖼",
-                    banner: "🖼",
-                  };
-                  return (
-                    <div
-                      key={c.id}
-                      className="ui-surface overflow-hidden flex flex-col"
-                    >
-                      <div
-                        className="h-14 flex items-center justify-center relative flex-shrink-0"
-                        style={{
-                          background: `linear-gradient(135deg, ${color}, #111)`,
-                        }}
-                      >
-                        <span className="text-[24px]">
-                          {emojiMap[c.subtype] ?? "📝"}
-                        </span>
-                        <div className="absolute top-2 left-2 flex items-center gap-1">
-                          <div
-                            style={{
-                              width: 18,
-                              height: 13,
-                              borderRadius: 2,
-                              background: color,
-                              color: "#fff",
-                              fontSize: 7,
-                              fontWeight: 700,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              opacity: 0.85,
-                            }}
-                          >
-                            {abbr}
-                          </div>
-                          <span className="text-[8px] text-white/70">
-                            {c.subtype}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() =>
-                            setGeneratedCreatives((prev) =>
-                              prev.filter((cr) => cr.id !== c.id),
-                            )
-                          }
-                          className="absolute top-1.5 right-1.5 w-5 h-5 bg-black/50 hover:bg-black/80 text-white rounded-full flex items-center justify-center text-[9px] cursor-pointer transition-colors"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      <div className="p-3 flex-1 flex flex-col min-h-0">
-                        <p className="text-[11px] font-semibold text-tx-1 mb-1 leading-tight">
-                          {c.title}
-                        </p>
-                        {c.hook && (
-                          <p className="text-[10px] text-accent mb-1.5 italic leading-snug">
-                            {c.hook}
-                          </p>
-                        )}
-                        <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-3">
-                          {c.caption}
-                        </p>
-                      </div>
-                      <div className="border-t border-line flex flex-shrink-0">
-                        <button
-                          onClick={() =>
-                            setScheduleModal({
-                              creativeId: c.id,
-                              platform: c.platform,
-                              title: c.title,
-                            })
-                          }
-                          className="flex-1 py-1.5 text-[9px] text-tx-2 hover:bg-hover cursor-pointer border-r border-line text-center"
-                        >
-                          📅 Запланировать
-                        </button>
-                        <button className="flex-1 py-1.5 text-[9px] text-tx-2 hover:bg-hover cursor-pointer text-center">
-                          🚀 Сейчас
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-
-          <div className="flex justify-between items-center pt-2">
-            <button
-              onClick={() => setStep(step - 1)}
-              className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
-            >
-              ← Назад
-            </button>
-            <div className="flex gap-2">
-              {generatedCreatives.length > 0 && (
-                <button
-                  onClick={() => setShowBulkSchedule(true)}
-                  className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer flex items-center gap-1.5"
-                >
-                  📅 Запланировать всё
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  if (generatedCreatives.length === 0) {
-                    setError("Сначала сгенерируйте креативы");
-                    return;
-                  }
-                  setError("");
-                  const next = Math.min(step + 1, activeSteps.length - 1);
-                  setStep(next);
-                  setMaxStep((prev: number) => Math.max(prev, next));
-                }}
-                className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
-              >
-                Далее: {activeSteps[step + 1]?.label ?? "Запуск"} →
-              </button>
-            </div>
-          </div>
-
-          {showBulkSchedule && (
-            <BulkScheduleModal
-              creatives={generatedCreatives}
-              onClose={() => setShowBulkSchedule(false)}
-              onScheduled={() => setShowBulkSchedule(false)}
-            />
-          )}
-        </div>
-      )}
 
       {/* ══ STEP 5: Launch ══ */}
       {currentStepKey === "launch" && (
-        <div>
-          <div className="ui-surface p-4 mb-4 space-y-2">
-            {[
-              { l: "Название", v: name },
-              { l: "Проект", v: (activeProject as any)?.name ?? "—" },
-              { l: "Цель", v: goal },
-              {
-                l: "Платформы",
-                v:
-                  [...selectedPlatforms]
-                    .map(
-                      (k) =>
-                        realPlatforms.find((p) => p.key === k)?.name ??
-                        PLATFORM_META[k]?.name ??
-                        k,
-                    )
-                    .join(", ") || "—",
-              },
-              {
-                l: "Бюджет",
-                v: budget ? `₽${Number(budget).toLocaleString("ru")}` : "—",
-              },
-              { l: "Лендинг", v: (() => { const lp = (landingPages as any[]).find((l: any) => l.id === landingId); return lp ? `${lp.name} (/${lp.slug})` : "—"; })() },
-              { l: "Креативов", v: `${generatedCreatives.length} штук готово` },
-              ...(projectAgent
-                ? [{ l: "AI агент", v: `${projectAgent.name} (${projectAgent.type ?? "агент"})` }]
-                : []),
-            ].map((row) => (
-              <div
-                key={row.l}
-                className="flex gap-3 text-[11px] py-1.5 border-b border-line last:border-0"
-              >
-                <span className="w-24 text-tx-3 flex-shrink-0">{row.l}</span>
-                <span className="font-medium text-tx-1">{row.v}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="p-3 bg-chip/30 rounded-[9px] mb-5 flex items-start gap-2">
-            <span>✦</span>
-            <p className="text-[11px] text-tx-2">
-              После запуска кампания станет активной, а{" "}
-              {generatedCreatives.length} креативов сохранятся в библиотеке. На
-              странице кампании можно запланировать публикации.
-            </p>
-          </div>
-
-          {launchProgress && (
-            <div className="flex items-center gap-3 p-3 bg-accent-dim border border-accent/20 rounded-[9px] mb-4">
-              <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin flex-shrink-0" />
-              <p className="text-[11px] text-accent">{launchProgress}</p>
-            </div>
-          )}
-
-          <div className="flex justify-between">
-            <button
-              onClick={() => setStep(step - 1)}
-              className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
-            >
-              ← Назад
-            </button>
-            <button
-              onClick={handleLaunch}
-              disabled={launching}
-              className="px-6 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-60"
-            >
-              {launching ? "⟳ Генерирую..." : "🚀 Запустить и сгенерировать"}
-            </button>
-          </div>
-        </div>
+        <LaunchStep
+          name={name}
+          goal={goal}
+          product={product}
+          audience={audience}
+          budget={budget}
+          selectedPlatforms={selectedPlatforms}
+          realPlatforms={realPlatforms}
+          landings={userLandings}
+          selectedLandingId={wizardLandingId}
+          onLandingChange={setWizardLandingId}
+          launchProgress={launchProgress}
+          launching={launching}
+          step={step}
+          setStep={setStep}
+          handleLaunch={handleLaunch}
+        />
       )}
 
       {/* Connect platform modal */}
@@ -2615,7 +2157,7 @@ export function WizardView({
                 <p className="text-[11px] text-tx-3 bg-panel-2 border border-line rounded-[8px] p-3 leading-relaxed">
                   Добавь бота{" "}
                   <strong className="text-tx-1">
-                    @{process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot"}
+                    @{process.env.NEXT_PUBLIC_BOT_USERNAME || "mvi_ra_bot"}
                   </strong>{" "}
                   как администратора канала, затем введи username
                 </p>
@@ -2664,31 +2206,10 @@ export function WizardView({
                 </div>
               </div>
             ) : (
-              <div className="space-y-3">
-                <p className="text-[11px] text-tx-3 bg-panel-2 border border-line rounded-[8px] p-3 leading-relaxed">
-                  Введите токен доступа от рекламного кабинета. Токен можно
-                  получить в настройках API платформы.
+              <div className="space-y-4">
+                <p className="text-[12px] text-tx-2 bg-panel-2 border border-line rounded-[10px] p-3 leading-relaxed">
+                  Подключите <strong className="text-tx-1">{PLATFORM_META[connectModal]?.name}</strong> на странице Интеграции, затем вернитесь сюда — платформа появится автоматически.
                 </p>
-                <div>
-                  <label className="block ui-label mb-1">Access Token</label>
-                  <input
-                    value={tokenInput}
-                    onChange={(e) => setTokenInput(e.target.value)}
-                    placeholder="Вставьте токен..."
-                    className={inp}
-                  />
-                </div>
-                <div>
-                  <label className="block ui-label mb-1">
-                    ID кабинета (необязательно)
-                  </label>
-                  <input
-                    value={accountIdInput}
-                    onChange={(e) => setAccountIdInput(e.target.value)}
-                    placeholder="account_12345"
-                    className={inp}
-                  />
-                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setConnectModal(null)}
@@ -2696,13 +2217,12 @@ export function WizardView({
                   >
                     Отмена
                   </button>
-                  <button
-                    onClick={handleConnectPlatform}
-                    disabled={connectingPlatform}
-                    className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
+                  <a
+                    href={`/${locale}/integrations?from=campaigns`}
+                    className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer text-center no-underline flex items-center justify-center"
                   >
-                    {connectingPlatform ? "Подключение..." : "Подключить"}
-                  </button>
+                    Перейти в Интеграции →
+                  </a>
                 </div>
               </div>
             )}
@@ -2710,55 +2230,6 @@ export function WizardView({
         </div>
       )}
 
-      {/* Schedule modal */}
-      {scheduleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/30 backdrop-blur-[3px]"
-            onClick={() => setScheduleModal(null)}
-          />
-          <div className="relative w-full max-w-[380px] bg-panel border border-line rounded-[14px] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[14px] font-semibold text-tx-1">
-                Запланировать
-              </h2>
-              <button
-                onClick={() => setScheduleModal(null)}
-                className="w-7 h-7 flex items-center justify-center rounded-[7px] border border-line hover:bg-hover cursor-pointer text-tx-3"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="text-[11px] text-tx-3 mb-4">
-              {scheduleModal.title} · {scheduleModal.platform}
-            </p>
-            <div className="mb-4">
-              <label className="block ui-label mb-1">Дата и время</label>
-              <input
-                type="datetime-local"
-                value={scheduleTime}
-                onChange={(e) => setScheduleTime(e.target.value)}
-                className={inp}
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setScheduleModal(null)}
-                className="flex-1 py-2.5 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={handleScheduleCreative}
-                disabled={!scheduleTime || scheduling}
-                className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
-              >
-                {scheduling ? "..." : "📅 Запланировать"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { generateContent } from "@/lib/ai/claude";
 import { getCurrentUser } from "@/lib/auth";
 import { query, queryOne } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { spendTokens, refundTokens } from "@/lib/ai/tokens";
 
 const TONE_VARIANTS = [
   { tone: "friendly", label: "Дружелюбный" },
@@ -10,9 +11,16 @@ const TONE_VARIANTS = [
 ];
 
 export async function POST(request: Request) {
+  let userId = "";
+  let gateOk = false;
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    userId = user.id;
+
+    const gate = await spendTokens(user.id, "post_generate");
+    if (!gate.ok) return NextResponse.json({ error: "insufficient_tokens", remaining: gate.remaining, required: gate.required }, { status: 402 });
+    gateOk = true;
 
     const body = await request.json();
     const { projectId, platform, contentType, goal, topic, imageUrl, campaignId } = body;
@@ -65,8 +73,10 @@ export async function POST(request: Request) {
       }))
       .filter((v) => v.content !== null);
 
-    if (variants.length === 0)
+    if (variants.length === 0) {
+      await refundTokens(userId, "post_generate");
       return NextResponse.json({ error: "Все варианты не удалось сгенерировать" }, { status: 500 });
+    }
 
     const savedVariants = await Promise.all(
       variants.map(async (v) => {
@@ -88,6 +98,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ variants: savedVariants });
   } catch (error: unknown) {
+    if (gateOk) await refundTokens(userId, "post_generate");
     const msg = error instanceof Error ? error.message : "Generation failed";
     return NextResponse.json({ error: msg }, { status: 500 });
   }

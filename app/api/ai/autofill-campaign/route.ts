@@ -1,12 +1,16 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getCurrentUser } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { spendTokens, refundTokens } from "@/lib/ai/tokens";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const gate = await spendTokens(user.id, "campaign_ai");
+  if (!gate.ok) return NextResponse.json({ error: "insufficient_tokens", remaining: gate.remaining, required: gate.required }, { status: 402 });
 
   const { projectName, niche, description, audience } = await request.json();
 
@@ -40,6 +44,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(parsed);
   } catch (err: any) {
+    await refundTokens(user.id, "campaign_ai");
     console.error("[ai/autofill-campaign]", err?.message || err);
     return NextResponse.json({ error: err?.message || "Generation failed" }, { status: 500 });
   }

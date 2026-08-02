@@ -1,7 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import Sidebar from "@/components/features/Sidebar";
 import { TopNavbar } from "@/components/features/TopNavbar";
+import { AiAdvisorPanel } from "@/components/features/AiAdvisorPanel";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 const SIDEBAR_KEY = "sidebar_collapsed";
@@ -12,6 +14,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const pathname = usePathname();
+  const showAdvisor = !pathname.includes("/campaigns");
 
   useEffect(() => {
     try {
@@ -85,9 +89,12 @@ export default function DashboardLayout({
           </div>
         </div>
 
-        {/* Page content */}
-        <div className="flex-1 bg-panel border border-line rounded-2xl overflow-y-auto md:pt-0 pt-14 min-h-0">
-          {children}
+        {/* Page content + AI Advisor */}
+        <div style={{ flex: 1, display: "flex", overflow: "hidden", gap: 8, minHeight: 0 }}>
+          <div className="flex-1 bg-panel border border-line rounded-2xl overflow-y-auto md:pt-0 pt-14 min-h-0">
+            {children}
+          </div>
+          {showAdvisor && <AiAdvisorPanel pathname={pathname} />}
         </div>
       </main>
     </div>

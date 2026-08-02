@@ -22,7 +22,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const body = await request.json();
   const allowed = ["name", "goal", "description", "status", "budget_total", "budget_spent",
-    "impressions", "clicks", "leads", "sales", "revenue", "ctr", "cpl", "roas", "platforms"];
+    "impressions", "clicks", "leads", "sales", "revenue", "ctr", "cpl", "roas", "platforms", "landing_id"];
   const sets: string[] = [];
   const vals: any[] = [];
   for (const key of allowed) {

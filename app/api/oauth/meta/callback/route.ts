@@ -32,11 +32,18 @@ export async function GET(req: NextRequest) {
   const firstAccount = accountData.data?.[0];
 
   await query(
-    `INSERT INTO ad_platforms (user_id, platform_key, name, color, abbr, access_token, ad_account_id, is_active, status, updated_at)
-     VALUES ($1, 'meta', 'Meta Ads', '#1877F2', 'M', $2, $3, true, 'active', NOW())
-     ON CONFLICT (user_id, platform_key) DO UPDATE SET access_token = $2, ad_account_id = $3, is_active = true, updated_at = NOW()`,
+    `INSERT INTO ad_platforms (user_id, platform_key, name, color, abbr, access_token, account_id, is_active, status, updated_at)
+     VALUES ($1, 'meta', 'Meta Ads', '#1877F2', 'M', $2, $3, true, 'active', NOW())`,
     [user.id, tokens.access_token, firstAccount?.id ?? null]
   );
 
-  return NextResponse.redirect(`${REDIRECT_BASE}/ru/integrations?tab=ads&success=meta`);
+  let returnTo = "/ru/integrations?tab=ads&success=meta";
+  try {
+    const rawState = req.nextUrl.searchParams.get("state") ?? "";
+    const parsed = JSON.parse(rawState);
+    if (typeof parsed.returnTo === "string" && parsed.returnTo.startsWith("/")) {
+      returnTo = parsed.returnTo;
+    }
+  } catch { /* state is a plain string — keep default */ }
+  return NextResponse.redirect(`${REDIRECT_BASE}${returnTo}`);
 }

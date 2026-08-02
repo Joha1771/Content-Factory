@@ -8,7 +8,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ pl
 
   const { platform: id } = await params;
   const body = await request.json();
-  const allowed = ["is_active", "status", "monthly_spend", "ad_account_id"];
+  const allowed = ["is_active", "status", "monthly_spend", "account_id", "label"];
   const sets: string[] = [];
   const vals: any[] = [];
   for (const key of allowed) {

@@ -175,17 +175,21 @@ CSS-переменные (НЕ Tailwind цвета):
 
 ---
 
-## Текущий статус фич (последнее обновление: 2026-07-01)
+## Текущий статус фич (последнее обновление: 2026-07-03)
 
 ### ✅ Работает
 - Аутентификация (JWT, login/register)
 - Проекты: создание, редактирование, черновики, ниша с деревом, тон с подстилями
   - Ниша "Другое" → показывает текстовый input
   - AI заполнить → description + audience + keywords (с показом ошибки)
+  - AI заполнить по логотипу → анализирует картинку, заполняет ВСЕ поля (name, description, audience, tone, niche, language, keywords)
   - Поле "Ключевые слова" в правой колонке
+  - Форма сохраняется в localStorage (не пропадает при навигации/обновлении)
+  - Клик на лого → lightbox просмотр
+  - Загрузка лого: клиентский ресайз до 800×800 JPEG 85% перед отправкой (нет 413)
 - Кампании: WizardView с динамическими шагами по выбранным инструментам
   - Ниша — поиск прямо в шаге "Цель" (WIZARD_NICHE_TREE, 26 категорий)
-  - AI совет по бюджету (с показом ошибки если упал)
+  - AI совет по бюджету с объяснением (мин/рекомендуем/макс + 2-3 предложения почему)
   - Шаг "Платформы" всегда виден
 - Лендинги:
   - Создание через AI (шаблоны, фон, sessionStorage между шагами)
@@ -194,7 +198,9 @@ CSS-переменные (НЕ Tailwind цвета):
   - Портфолио `/l/u/[userId]` — все опубликованные лендинги пользователя
   - Вкладка "Заявки" в /landings (все лиды с контактами)
   - Кнопка "Портфолио" в шапке /landings (только если есть опубликованные)
+  - Хранилище проекта: клик на картинку → lightbox просмотр
 - Заявки (leads): форма на лендинге → сохраняется в БД с landing_id
+- Интеграции: Meta Ads использует отдельный `NEXT_PUBLIC_META_APP_ID` (не путать с Instagram app)
 - AI-агенты, генерация контента, инфографика
 - Биллинг (Click/Payme)
 - Мультиязычность (ru/uz/en)
@@ -227,11 +233,44 @@ CSS-переменные (НЕ Tailwind цвета):
 
 ## Последние изменения (лог)
 
+### 2026-07-03 (текущая сессия)
+- `components/landing/LandingRenderer.tsx`: полный редизайн — новые типы блоков:
+  - `price` (старая цена перечёркнута + новая зелёная + кнопка + эмодзи-карточка)
+  - `hero` теперь поддерживает `badge` (чёрная пилюля-метка), `centered`, `emoji`
+  - `form` теперь поддерживает `dark` (тёмный фон #1A1A18) + `note` (подпись под кнопкой)
+- `landings/create/page.tsx`:
+  - Step1 добавлены поля `oldPrice`, `newPrice`, `productEmoji`
+  - TEMPLATES заменены на 6 целевых: Товар, Заявка, Запись, Событие, Меню, Звонок
+  - В шаге 2 (тип) для шаблона "product" показываются поля цены
+- `api/landings/generate/route.ts`:
+  - Разные промпты для каждого templateId (product/appointment/event/menu/callback/form)
+  - Для "product": hero(badge,centered) + price + features + form(dark,note)
+  - Переключён на claude-haiku-4-5-20251001 (быстрее)
+- `landings/[id]/edit/page.tsx`:
+  - Поддержка `price` блока в сайдбаре (emoji, oldPrice, newPrice, cta)
+  - Hero: добавлено поле `badge`
+  - Form: добавлены поля `note` и `dark` (toggle светлый/тёмный)
+
+### 2026-07-02–03
+- `projects/page.tsx`: ресайз лого перед загрузкой (800×800 JPEG 85%) — исправлен 413 при сохранении
+- `projects/page.tsx`: localStorage персистентность формы (`project_tab_snapshots_v1`)
+- `projects/page.tsx`: AI заполнение всех полей по логотипу (`handleAiFromImage` + кнопка)
+- `projects/page.tsx`: lightbox для лого (клик на превью → полноэкранный просмотр)
+- `projects/[id]/page.tsx`: lightbox для файлов хранилища
+- `api/projects/route.ts` + `[id]/route.ts`: try-catch, тихие ошибки устранены
+- `api/ai/suggest-project/route.ts`: поддержка vision (base64 и URL), возвращает все поля
+- `api/ai/suggest-budget/route.ts`: объяснение бюджета (мин/рекомендуем/макс + текст почему)
+- `components/ads/WizardView.tsx`: карточка с тремя колонками бюджета + текст объяснения
+- `integrations/page.tsx`: Meta Ads использует `NEXT_PUBLIC_META_APP_ID` (отдельное FB приложение)
+- `api/oauth/meta/callback/route.ts`: исправлен client_id для Meta Ads
+- БД: `projects_tone_check` расширен (`professional`, `humorous`, `formal` добавлены)
+- `.env` на сервере: добавлены `NEXT_PUBLIC_META_APP_ID`, `META_APP_SECRET`
+
 ### 2026-07-01
 - `projects/page.tsx`: исправлен баг "Другое" ниши (показывает input), добавлено поле Keywords, inline ошибка AI заполнения
 - `api/projects/route.ts` + `[id]/route.ts`: добавлен keywords в POST и PATCH
 - `api/ai/suggest-project/route.ts`: возвращает keywords в ответе
-- `supabase/migrations/008_project_keywords.sql`: **нужно запустить на сервере**
+- `supabase/migrations/008_project_keywords.sql`: **запущена на сервере** ✅
 - `components/ads/WizardView.tsx`: ниша-поиск прямо в шаге "Цель", AI budget показывает ошибку
 
 ### 2026-06-29 (предыдущая сессия)

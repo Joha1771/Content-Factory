@@ -353,7 +353,14 @@ function ProjectForm({
         ? await fetch(`/api/projects/${projectId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
         : await fetch("/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
 
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Ошибка сохранения"); }
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        if (res.status === 409) {
+          setNameError(d.error || "Проект с таким названием уже существует");
+          return;
+        }
+        throw new Error(d.error || "Ошибка сохранения");
+      }
 
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["project_names"] });
@@ -929,12 +936,18 @@ function ProjectsPageInner() {
 
   const deleteProject = useMutation({
     mutationFn: async (id: string) => {
-      await fetch(`/api/projects/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Ошибка удаления");
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["project_names"] });
+      qc.invalidateQueries({ queryKey: ["projects_selector"] });
     },
+    onError: (e: any) => alert("Ошибка: " + e.message),
   });
 
   const addTab = () => {

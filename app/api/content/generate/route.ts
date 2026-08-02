@@ -2,11 +2,19 @@ import { getCurrentUser } from "@/lib/auth";
 import { query, queryOne } from "@/lib/db";
 import { generateContent } from "@/lib/ai/claude";
 import { NextResponse } from "next/server";
+import { spendTokens, refundTokens } from "@/lib/ai/tokens";
 
 export async function POST(request: Request) {
+  let userId = "";
+  let gateOk = false;
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    userId = user.id;
+
+    const gate = await spendTokens(user.id, "post_generate");
+    if (!gate.ok) return NextResponse.json({ error: "insufficient_tokens", remaining: gate.remaining, required: gate.required }, { status: 402 });
+    gateOk = true;
 
     const body = await request.json();
     const { projectId, platform, contentType, goal, topic, imageUrl, campaignId } = body;
@@ -71,6 +79,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ content });
   } catch (error: unknown) {
+    if (gateOk) await refundTokens(userId, "post_generate");
     const message = error instanceof Error ? error.message : "Generation failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }

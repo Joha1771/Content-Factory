@@ -36,5 +36,13 @@ export async function GET(req: NextRequest) {
       tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null]
   );
 
-  return NextResponse.redirect(`${REDIRECT_BASE}/ru/integrations?tab=ads&success=google`);
+  let returnTo = "/ru/integrations?tab=ads&success=google";
+  try {
+    const rawState = req.nextUrl.searchParams.get("state") ?? "";
+    const parsed = JSON.parse(rawState);
+    if (typeof parsed.returnTo === "string" && parsed.returnTo.startsWith("/")) {
+      returnTo = parsed.returnTo;
+    }
+  } catch { /* no state — keep default */ }
+  return NextResponse.redirect(`${REDIRECT_BASE}${returnTo}`);
 }

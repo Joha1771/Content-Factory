@@ -16,11 +16,11 @@ import Link from "next/link";
 
 const NAV_LINKS = [
   { label: "Проекты", href: "/projects" },
-  { label: "Кампании", href: "/campaigns" },
-  { label: "Инфографика", href: "/infographics" },
-  { label: "Отчёты", href: "/campaigns?tab=reports" },
+  // { label: "Кампании", href: "/campaigns" },           // MVP: hidden
+  // { label: "Инфографика", href: "/infographics" },     // MVP: hidden
+  // { label: "Отчёты", href: "/campaigns?tab=reports" }, // MVP: hidden
   { label: "Подключения", href: "/integrations" },
-  { label: "Сотрудники", href: "/ai-workers" },
+  // { label: "Сотрудники", href: "/ai-workers" },        // MVP: hidden
 ];
 
 const PLAN_LABELS: Record<string, string> = {

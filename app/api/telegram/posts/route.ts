@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   const logs = await query<any>(
     `SELECT pl.id, pl.created_at, pl.telegram_message_id, pl.platform, pl.status, pl.content_id,
-            c.id as c_id, c.title, c.body, c.caption, c.source_image_url, c.platform as c_platform, c.type as content_type
+            c.id as c_id, c.title, c.caption, c.source_image_url, c.platform as c_platform, c.type as content_type
      FROM publish_logs pl
      LEFT JOIN contents c ON pl.content_id = c.id
      WHERE pl.platform = 'telegram' AND pl.status = 'published' AND pl.content_id IS NOT NULL

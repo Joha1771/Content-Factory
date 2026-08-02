@@ -24,6 +24,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const body = await request.json();
     const { name, niche, description, audience, tone, language, logo_url, is_active, country, phone, website, keywords } = body;
 
+    if (name?.trim()) {
+      const duplicate = await queryOne(
+        "SELECT id FROM projects WHERE user_id = $1 AND lower(name) = lower($2) AND is_active = true AND id != $3",
+        [user.id, name.trim(), id]
+      );
+      if (duplicate) return NextResponse.json({ error: "Проект с таким названием уже существует" }, { status: 409 });
+    }
+
     const project = await queryOne(
       `UPDATE projects SET
         name = COALESCE($1, name),
@@ -55,9 +63,14 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
 
-  await query(
-    "UPDATE projects SET is_active = false, updated_at = NOW() WHERE id = $1 AND user_id = $2",
-    [id, user.id]
-  );
-  return NextResponse.json({ ok: true });
+  try {
+    await query(
+      "DELETE FROM projects WHERE id = $1 AND user_id = $2",
+      [id, user.id]
+    );
+    return NextResponse.json({ ok: true });
+  } catch (err: any) {
+    console.error("[projects DELETE]", err?.message);
+    return NextResponse.json({ error: err?.message || "Delete failed" }, { status: 500 });
+  }
 }

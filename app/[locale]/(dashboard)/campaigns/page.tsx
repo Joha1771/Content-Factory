@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { CampaignsView } from "@/components/ads/CampaignsView";
@@ -23,7 +23,7 @@ function loadTabs(): WizardTab[] {
     const d = localStorage.getItem(TABS_KEY);
     if (d) return JSON.parse(d);
   } catch {}
-  return [{ id: "1", title: "Новая кампания" }];
+  return [];
 }
 function saveTabs(tabs: WizardTab[]) {
   try {
@@ -479,12 +479,20 @@ function CampaignsPageInner() {
   // Persist wizard tabs
   const [wizardTabs, setWizardTabs] = useState<WizardTab[]>(() => {
     if (typeof window !== "undefined") return loadTabs();
-    return [{ id: "1", title: "Новая кампания" }];
+    return [];
   });
   const [activeWizardId, setActiveWizardId] = useState<string>(() => {
     if (typeof window !== "undefined") return loadActiveId();
     return "1";
   });
+
+  // Count tabs that have real draft data (step > 0 or name filled)
+  const inProgressCount = wizardTabs.filter((tab) => {
+    try {
+      const d = JSON.parse(localStorage.getItem(`wizard_draft_v5_${tab.id}`) ?? "null");
+      return d && (d.step > 0 || (d.name && d.name.trim().length > 0));
+    } catch { return false; }
+  }).length;
 
   // Project selector state
   const [showProjectSelector, setShowProjectSelector] = useState(false);
@@ -511,9 +519,7 @@ function CampaignsPageInner() {
     router.push(`${pathname}?${p.toString()}`, { scroll: false });
   };
 
-  // When clicking "Создать" — show project selector first
   const handleCreateClick = () => {
-    // If no tabs exist (all were closed), create one first
     if (wizardTabs.length === 0 || !wizardTabs.find((t) => t.id === activeWizardId)) {
       const id = String(Date.now());
       try { localStorage.removeItem(`wizard_draft_v5_${id}`); } catch {}
@@ -522,31 +528,19 @@ function CampaignsPageInner() {
       setActiveWizardId(id);
       saveActiveId(id);
       saveTabs([newTab]);
-      pendingTabId.current = id;
       setTab("wizard");
-      setShowProjectSelector(true);
       return;
     }
     setTab("wizard");
-    const activeTab = wizardTabs.find((t) => t.id === activeWizardId);
-    if (!activeTab?.projectId) {
-      pendingTabId.current = activeWizardId;
-      setShowProjectSelector(true);
-    }
   };
 
   const addWizardTab = () => {
     const id = String(Date.now());
-    // Clear any stale draft for this new tab id
-    try {
-      localStorage.removeItem(`wizard_draft_v5_${id}`);
-    } catch {}
+    try { localStorage.removeItem(`wizard_draft_v5_${id}`); } catch {}
     const newTab: WizardTab = { id, title: "Новая кампания" };
     setWizardTabs((prev) => [...prev, newTab]);
     setActiveWizardId(id);
     saveActiveId(id);
-    pendingTabId.current = id;
-    setShowProjectSelector(true);
   };
 
   // Check if tab has any data worth saving
@@ -626,6 +620,51 @@ function CampaignsPageInner() {
       ),
     );
   };
+
+  // Handle ?resume=campaignId&landing=landingId redirect from landing creation
+  const resumeHandledRef = useRef(false);
+  const resumeCampaignId = searchParams.get("resume");
+  const resumeLandingId = searchParams.get("landing");
+  useEffect(() => {
+    if (!resumeCampaignId || !resumeLandingId || resumeHandledRef.current) return;
+    resumeHandledRef.current = true;
+
+    let targetTabId: string | null = null;
+    for (const wTab of wizardTabs) {
+      try {
+        const d = JSON.parse(localStorage.getItem(`wizard_draft_v5_${wTab.id}`) ?? "null");
+        if (d?.draftId === resumeCampaignId) { targetTabId = wTab.id; break; }
+      } catch {}
+    }
+
+    if (!targetTabId) {
+      const id = String(Date.now());
+      const newTab: WizardTab = { id, title: "Новая кампания" };
+      try {
+        localStorage.setItem(`wizard_draft_v5_${id}`, JSON.stringify({
+          landingId: resumeLandingId, campaignTools: ["landing"], draftId: resumeCampaignId,
+        }));
+      } catch {}
+      setWizardTabs(prev => [...prev, newTab]);
+      setActiveWizardId(id);
+      saveActiveId(id);
+    } else {
+      setActiveWizardId(targetTabId);
+      saveActiveId(targetTabId);
+      try {
+        const existing = JSON.parse(localStorage.getItem(`wizard_draft_v5_${targetTabId}`) ?? "null") ?? {};
+        const tools = new Set<string>(existing.campaignTools ?? []);
+        tools.add("landing");
+        localStorage.setItem(`wizard_draft_v5_${targetTabId}`, JSON.stringify({
+          ...existing, landingId: resumeLandingId, campaignTools: [...tools],
+        }));
+      } catch {}
+    }
+
+    const p = new URLSearchParams();
+    p.set("tab", "wizard");
+    router.replace(`${pathname}?${p.toString()}`);
+  }, [resumeCampaignId, resumeLandingId]);
 
   // When switching wizard tabs, sync projectId
   useEffect(() => {
@@ -736,8 +775,8 @@ function CampaignsPageInner() {
                   gap: 5,
                   padding: "6px 14px",
                   border: "none",
-                  borderRight: wizardTabs.length > 0 ? "0.5px solid rgba(255,255,255,0.25)" : "none",
-                  borderRadius: wizardTabs.length > 0 ? "8px 0 0 8px" : "8px",
+                  borderRight: inProgressCount > 0 ? "0.5px solid rgba(255,255,255,0.25)" : "none",
+                  borderRadius: inProgressCount > 0 ? "8px 0 0 8px" : "8px",
                   background: "var(--pos)",
                   color: "#fff",
                   fontSize: 12,
@@ -748,7 +787,7 @@ function CampaignsPageInner() {
               >
                 + Создать
               </button>
-              {wizardTabs.length > 0 && (
+              {inProgressCount > 0 && (
                 <button
                   onClick={handleCreateClick}
                   title="Черновики в процессе"
@@ -782,14 +821,14 @@ function CampaignsPageInner() {
                       fontWeight: 700,
                     }}
                   >
-                    {wizardTabs.length}
+                    {inProgressCount}
                   </span>
                 </button>
               )}
             </div>
 
             {/* Drafts dropdown */}
-            {draftsDropOpen && wizardTabs.length > 0 && (
+            {draftsDropOpen && inProgressCount > 0 && (
               <div
                 style={{
                   position: "absolute",
@@ -899,12 +938,6 @@ function CampaignsPageInner() {
           onSelect={(id) => {
             setActiveWizardId(id);
             saveActiveId(id);
-            // If tab has no project — show selector
-            const t = wizardTabs.find((t) => t.id === id);
-            if (!t?.projectId) {
-              pendingTabId.current = id;
-              setShowProjectSelector(true);
-            }
           }}
           onAdd={addWizardTab}
           onClose={tryCloseWizardTab}
@@ -917,10 +950,13 @@ function CampaignsPageInner() {
       >
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", minWidth: 0 }}>
           {tab === "campaigns" && (
-            <CampaignsView
-              onCreateCampaign={handleCreateClick}
-              projectId={projectId}
-            />
+            <div>
+              <p className="text-[10px] text-tx-3 mb-3 px-1">mvira отслеживает рекламу из подключённого кабинета, а не создаёт её — запускайте кампании напрямую в рекламном кабинете</p>
+              <CampaignsView
+                onCreateCampaign={handleCreateClick}
+                projectId={projectId}
+              />
+            </div>
           )}
           {tab === "wizard" && (
             <div>
@@ -950,17 +986,6 @@ function CampaignsPageInner() {
         </div>
         <RightPanel projectId={projectId} />
       </div>
-
-      {/* ── Project selector overlay ── */}
-      {showProjectSelector && (
-        <ProjectSelector
-          onSelect={handleProjectSelected}
-          onClose={() => {
-            setShowProjectSelector(false);
-            pendingTabId.current = null;
-          }}
-        />
-      )}
 
       {/* Close confirm modal */}
       {closeConfirm && (

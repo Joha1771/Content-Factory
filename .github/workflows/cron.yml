@@ -1,0 +1,39 @@
+name: Cron Jobs
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # every 5 minutes — publish scheduled posts
+    - cron: '0 */6 * * *'   # every 6 hours — auto-repost
+    - cron: '0 9 * * 1'     # every Monday 09:00 UTC — weekly report
+
+jobs:
+  publish-scheduled:
+    if: github.event.schedule == '*/5 * * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish scheduled posts
+        run: |
+          curl -s -X POST https://mvira.uz/api/cron/publish \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --fail-with-body
+
+  auto-repost:
+    if: github.event.schedule == '0 */6 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-repost due posts
+        run: |
+          curl -s -X GET https://mvira.uz/api/cron/auto-repost \
+            -H "authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --fail-with-body
+
+  weekly-report:
+    if: github.event.schedule == '0 9 * * 1'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send weekly report
+        run: |
+          curl -s -X GET https://mvira.uz/api/cron/weekly-report \
+            -H "authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --fail-with-body

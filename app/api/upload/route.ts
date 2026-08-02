@@ -17,8 +17,14 @@ export async function POST(request: Request) {
   const ext = path.extname(file.name) || ".bin";
   const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
   const uploadDir = path.join(process.cwd(), "public", folder, user.id);
-  await mkdir(uploadDir, { recursive: true });
-  await writeFile(path.join(uploadDir, filename), buffer);
+
+  try {
+    await mkdir(uploadDir, { recursive: true });
+    await writeFile(path.join(uploadDir, filename), buffer);
+  } catch (err: any) {
+    console.error("[upload] filesystem error:", err?.message);
+    return NextResponse.json({ error: "Filesystem error: " + err?.message }, { status: 500 });
+  }
 
   return NextResponse.json({ url: `/${folder}/${user.id}/${filename}` });
 }

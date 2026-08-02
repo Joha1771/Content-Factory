@@ -99,8 +99,7 @@ export default function ProjectDetailPage() {
   const [editDescription,  setEditDescription] = useState("");
   const [editAudience,     setEditAudience]    = useState("");
   const [editStopWords,    setEditStopWords]   = useState("");
-  const [uploadType,       setUploadType]      = useState<"image"|"video"|"document"|"other">("image");
-  const [fileFilter,       setFileFilter]      = useState<"all"|"image"|"video"|"document"|"other">("all");
+  const [activeStorageTab, setActiveStorageTab] = useState<"image"|"video"|"document"|"other">("image");
   const [isDragging,       setIsDragging]      = useState(false);
   const [showTaskModal,    setShowTaskModal]   = useState(false);
   const [newTaskTitle,     setNewTaskTitle]    = useState("");
@@ -298,7 +297,7 @@ export default function ProjectDetailPage() {
       const { url: fileUrl } = await uploadRes.json();
 
       // Detect type
-      let detectedType = uploadType;
+      let detectedType: "image"|"video"|"document"|"other" = activeStorageTab;
       if (file.type.startsWith("image/"))  detectedType = "image";
       if (file.type.startsWith("video/"))  detectedType = "video";
       if (file.type.includes("pdf") || file.type.includes("document")) detectedType = "document";
@@ -395,10 +394,6 @@ export default function ProjectDetailPage() {
     if (!newTaskTitle.trim()) { setTaskError("Введите название задачи"); return; }
     createTaskMutation.mutate({ title: newTaskTitle, description: newTaskDesc, priority: newTaskPriority });
   };
-
-  const filteredFiles  = fileFilter === "all"
-    ? (files as any[])
-    : (files as any[]).filter((f: any) => f.type === fileFilter);
 
   // ── Loading / not found ───────────────────────────────────────────────────
 
@@ -935,164 +930,177 @@ export default function ProjectDetailPage() {
         )}
 
         {/* ──── STORAGE ──── */}
-        {activeTab === "storage" && (
-          <div className="max-w-3xl">
-            {/* Toolbar */}
-            <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-              {/* Фильтр по типу */}
-              <div className="flex gap-1.5">
-                {(["all", "image", "video", "document", "other"] as const).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setFileFilter(t)}
-                    className={`px-2.5 py-1 text-[11px] rounded-lg border transition-colors cursor-pointer ${
-                      fileFilter === t ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"
-                    }`}
-                  >
-                    {t === "all" ? "Все" : FILE_TYPE_LABELS[t]}
-                  </button>
-                ))}
+        {activeTab === "storage" && (() => {
+          const storageTabs = [
+            { key: "image"    as const, label: "🖼 Картинки",  accept: "image/*",                                 emptyHint: "PNG, JPG, WebP, GIF" },
+            { key: "video"    as const, label: "🎬 Видео",     accept: "video/*",                                 emptyHint: "MP4, MOV, AVI, WebM" },
+            { key: "document" as const, label: "📄 Документы", accept: ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx",   emptyHint: "PDF, Word, Excel, PowerPoint" },
+            { key: "other"    as const, label: "📁 Другое",    accept: "*",                                       emptyHint: "Любые файлы" },
+          ];
+          const uploadLabels: Record<string, string> = {
+            image: "Загрузить картинку", video: "Загрузить видео",
+            document: "Загрузить документ", other: "Загрузить файл",
+          };
+          const currentTab  = storageTabs.find(t => t.key === activeStorageTab)!;
+          const tabFiles    = (files as any[]).filter((f: any) => f.type === activeStorageTab);
+          const triggerUpload = () => {
+            if (fileInputRef.current) {
+              fileInputRef.current.accept = currentTab.accept;
+              fileInputRef.current.click();
+            }
+          };
+
+          return (
+            <div className="max-w-3xl">
+              {/* Sub-tabs */}
+              <div className="flex gap-2 mb-4 flex-wrap">
+                {storageTabs.map((t) => {
+                  const count = (files as any[]).filter((f: any) => f.type === t.key).length;
+                  const active = activeStorageTab === t.key;
+                  return (
+                    <button
+                      key={t.key}
+                      onClick={() => setActiveStorageTab(t.key)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] rounded-lg border transition-colors cursor-pointer ${
+                        active ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"
+                      }`}
+                    >
+                      {t.label}
+                      {count > 0 && (
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold ${active ? "bg-white/20 text-white" : "bg-chip text-tx-3"}`}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Загрузить */}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadMutation.isPending}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-on-accent text-xs font-medium rounded-lg hover:opacity-90 cursor-pointer disabled:opacity-60 transition-opacity"
-              >
-                <Upload size={13} strokeWidth={2} />
-                {uploadMutation.isPending ? "Загрузка..." : "Загрузить файл"}
-              </button>
+              {/* Upload row */}
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] text-tx-3">
+                  {tabFiles.length > 0 ? `${tabFiles.length} ${tabFiles.length === 1 ? "файл" : "файла"}` : "Файлов нет"}
+                </p>
+                <button
+                  onClick={triggerUpload}
+                  disabled={uploadMutation.isPending}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-on-accent text-xs font-medium rounded-lg hover:opacity-90 cursor-pointer disabled:opacity-60 transition-opacity"
+                >
+                  <Upload size={13} strokeWidth={2} />
+                  {uploadMutation.isPending ? "Загрузка..." : uploadLabels[activeStorageTab]}
+                </button>
+              </div>
+
               <input
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                 className="hidden"
                 onChange={(e) => {
                   Array.from(e.target.files || []).forEach((f) => uploadMutation.mutate(f));
                   e.target.value = "";
                 }}
               />
-            </div>
 
-            {/* Drag-and-drop zone (пустое состояние) */}
-            {filteredFiles.length === 0 && (
-              <div
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                  Array.from(e.dataTransfer.files).forEach((f) => uploadMutation.mutate(f));
-                }}
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl py-16 flex flex-col items-center justify-center cursor-pointer transition-colors ${
-                  isDragging ? "border-accent bg-accent/5" : "border-line hover:border-line-strong"
-                }`}
-              >
-                <FolderOpen size={36} className={isDragging ? "text-accent" : "text-tx-3"} strokeWidth={1.4} />
-                <p className="text-sm text-tx-3 mt-3 font-medium">
-                  {isDragging ? "Отпусти файлы" : "Перетащи или нажми для загрузки"}
-                </p>
-                <p className="text-xs text-tx-3 mt-1">Изображения, видео, PDF, документы</p>
-              </div>
-            )}
+              {/* Empty / DnD zone */}
+              {tabFiles.length === 0 && (
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    Array.from(e.dataTransfer.files).forEach((f) => uploadMutation.mutate(f));
+                  }}
+                  onClick={triggerUpload}
+                  className={`border-2 border-dashed rounded-xl py-16 flex flex-col items-center justify-center cursor-pointer transition-colors ${
+                    isDragging ? "border-accent bg-accent/5" : "border-line hover:border-line-strong"
+                  }`}
+                >
+                  <FolderOpen size={36} className={isDragging ? "text-accent" : "text-tx-3"} strokeWidth={1.4} />
+                  <p className="text-sm text-tx-3 mt-3 font-medium">
+                    {isDragging ? "Отпусти файлы" : "Перетащи или нажми для загрузки"}
+                  </p>
+                  <p className="text-xs text-tx-3 mt-1">{currentTab.emptyHint}</p>
+                </div>
+              )}
 
-            {/* Drag overlay когда файлы уже есть */}
-            {filteredFiles.length > 0 && (
-              <div
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                  Array.from(e.dataTransfer.files).forEach((f) => uploadMutation.mutate(f));
-                }}
-                className="relative"
-              >
-                {isDragging && (
-                  <div className="absolute inset-0 z-10 border-2 border-accent border-dashed rounded-xl bg-accent/5 flex items-center justify-center pointer-events-none">
-                    <p className="text-sm font-medium text-accent">Отпусти для загрузки</p>
-                  </div>
-                )}
-
-                {/* File grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {filteredFiles.map((f: any) => (
-                    <div
-                      key={f.id}
-                      className="group border border-line rounded-xl overflow-hidden hover:border-line-strong transition-colors bg-panel"
-                    >
-                      {/* Превью */}
-                      {f.type === "image" && f.url ? (
-                        <div className="relative cursor-zoom-in" onClick={() => setLightboxUrl(f.url)}>
-                          <img src={f.url} alt={f.name} className="w-full h-28 object-cover" />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                            <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-medium bg-black/50 px-2 py-1 rounded-md transition-opacity">Просмотр</span>
+              {/* File grid */}
+              {tabFiles.length > 0 && (
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    Array.from(e.dataTransfer.files).forEach((f) => uploadMutation.mutate(f));
+                  }}
+                  className="relative"
+                >
+                  {isDragging && (
+                    <div className="absolute inset-0 z-10 border-2 border-accent border-dashed rounded-xl bg-accent/5 flex items-center justify-center pointer-events-none">
+                      <p className="text-sm font-medium text-accent">Отпусти для загрузки</p>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {tabFiles.map((f: any) => (
+                      <div key={f.id} className="group border border-line rounded-xl overflow-hidden hover:border-line-strong transition-colors bg-panel">
+                        {f.type === "image" && f.url ? (
+                          <div className="relative cursor-zoom-in" onClick={() => setLightboxUrl(f.url)}>
+                            <img src={f.url} alt={f.name} className="w-full h-28 object-cover" />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                              <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-medium bg-black/50 px-2 py-1 rounded-md transition-opacity">Просмотр</span>
+                            </div>
+                          </div>
+                        ) : f.type === "video" ? (
+                          <div className="w-full h-28 bg-panel-2 flex items-center justify-center">
+                            <Film size={28} className="text-tx-3" strokeWidth={1.4} />
+                          </div>
+                        ) : (
+                          <div className="w-full h-28 bg-panel-2 flex items-center justify-center">
+                            <FileText size={28} className="text-tx-3" strokeWidth={1.4} />
+                          </div>
+                        )}
+                        <div className="p-2">
+                          <p className="text-[11px] font-medium text-tx-1 truncate" title={f.name}>{f.name}</p>
+                          <span className="text-[9px] text-tx-3">{formatBytes(f.size)}</span>
+                          <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <a
+                              href={f.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 text-center text-[10px] py-1 bg-accent/10 text-accent rounded-md font-medium hover:bg-accent/20 transition-colors"
+                            >
+                              Открыть
+                            </a>
+                            <button
+                              onClick={() => { if (confirm(`Удалить «${f.name}»?`)) deleteFileMutation.mutate({ id: f.id, file_url: f.url }); }}
+                              disabled={deleteFileMutation.isPending}
+                              className="w-7 flex items-center justify-center bg-chip hover:bg-neg/10 text-tx-3 hover:text-neg rounded-md transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              <Trash2 size={11} strokeWidth={2} />
+                            </button>
                           </div>
                         </div>
-                      ) : f.type === "video" ? (
-                        <div className="w-full h-28 bg-panel-2 flex items-center justify-center">
-                          <Film size={28} className="text-tx-3" strokeWidth={1.4} />
-                        </div>
-                      ) : (
-                        <div className="w-full h-28 bg-panel-2 flex items-center justify-center">
-                          <FileText size={28} className="text-tx-3" strokeWidth={1.4} />
-                        </div>
-                      )}
-
-                      {/* Мета */}
-                      <div className="p-2">
-                        <p className="text-[11px] font-medium text-tx-1 truncate" title={f.name}>{f.name}</p>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-[9px] text-tx-3">{formatBytes(f.size)}</span>
-                          <span className="text-[9px] text-tx-3 capitalize">{FILE_TYPE_LABELS[f.type] || f.type}</span>
-                        </div>
-                        {/* Действия */}
-                        <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <a
-                            href={f.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 text-center text-[10px] py-1 bg-accent/10 text-accent rounded-md font-medium hover:bg-accent/20 transition-colors"
-                          >
-                            Открыть
-                          </a>
-                          <button
-                            onClick={() => {
-                              if (confirm(`Удалить «${f.name}»?`)) {
-                                deleteFileMutation.mutate({ id: f.id, file_url: f.url });
-                              }
-                            }}
-                            disabled={deleteFileMutation.isPending}
-                            className="w-7 flex items-center justify-center bg-chip hover:bg-neg/10 text-tx-3 hover:text-neg rounded-md transition-colors cursor-pointer disabled:opacity-50"
-                          >
-                            <Trash2 size={11} strokeWidth={2} />
-                          </button>
-                        </div>
                       </div>
-                    </div>
-                  ))}
-
-                  {/* Add more tile */}
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-line hover:border-accent rounded-xl h-full min-h-[160px] flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors group"
-                  >
-                    <Upload size={20} className="text-tx-3 group-hover:text-accent transition-colors" strokeWidth={1.5} />
-                    <span className="text-[11px] text-tx-3 group-hover:text-accent transition-colors">Добавить</span>
-                  </button>
+                    ))}
+                    <button
+                      onClick={triggerUpload}
+                      className="border-2 border-dashed border-line hover:border-accent rounded-xl h-full min-h-[160px] flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors group"
+                    >
+                      <Upload size={20} className="text-tx-3 group-hover:text-accent transition-colors" strokeWidth={1.5} />
+                      <span className="text-[11px] text-tx-3 group-hover:text-accent transition-colors">Добавить</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Ошибка загрузки */}
-            {uploadMutation.isError && (
-              <p className="text-xs text-neg mt-3">Ошибка загрузки: {(uploadMutation.error as any)?.message}</p>
-            )}
-          </div>
-        )}
+              {uploadMutation.isError && (
+                <p className="text-xs text-neg mt-3">Ошибка загрузки: {(uploadMutation.error as any)?.message}</p>
+              )}
+            </div>
+          );
+        })()}
 
       </div>
 
